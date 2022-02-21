@@ -57,7 +57,7 @@ func TestQueryStorageAsk(t *testing.T) {
 		ask, _, err := fc.Miner(minerAddr).QueryStorageAskUnchecked(cctx.Context)
 		require.NoError(t, err)
 
-		fmt.Printf("Ask: %#v", ask)
+		fmt.Printf("Ask: %#v\n", ask)
 
 		return nil
 	}
