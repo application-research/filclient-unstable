@@ -16,7 +16,7 @@ var (
 	ErrMinerConnectionFailed = errors.New("miner connection failed")
 )
 
-func (fc *FilClient) GetMinerVersion(ctx context.Context, miner address.Address) (string, error) {
+func (fc *FilClient) MinerVersion(ctx context.Context, miner address.Address) (string, error) {
 	peer, err := fc.connectToMiner(ctx, miner)
 	if err != nil {
 		return "", err
@@ -56,6 +56,8 @@ func (fc *FilClient) connectToMiner(ctx context.Context, miner address.Address) 
 		multiaddrs = append(multiaddrs, multiaddr)
 	}
 
+	// FIXME - lotus-client-proper falls back on the DHT when it has a peerid but no multiaddr
+	// filc should do the same
 	if len(multiaddrs) == 0 {
 		// If there were addresses and they were all invalid (hadInvalid marked
 		// true and multiaddrs length 0), specifically mention that

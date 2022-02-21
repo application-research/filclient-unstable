@@ -27,7 +27,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func TestGetMinerVersion(t *testing.T) {
+func TestMinerVersion(t *testing.T) {
 	app := cli.NewApp()
 	app.Action = func(cctx *cli.Context) error {
 		_, miner, _, fc, closer := initEnsemble(t, cctx)
@@ -39,7 +39,7 @@ func TestGetMinerVersion(t *testing.T) {
 		minerAddr, err := miner.ActorAddress(cctx.Context)
 		require.NoError(t, err)
 
-		version, err := fc.GetMinerVersion(cctx.Context, minerAddr)
+		version, err := fc.MinerVersion(cctx.Context, minerAddr)
 		require.NoError(t, err)
 		fmt.Printf("Miner Version: %s\n", version)
 
