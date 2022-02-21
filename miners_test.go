@@ -33,15 +33,31 @@ func TestMinerVersion(t *testing.T) {
 		_, miner, _, fc, closer := initEnsemble(t, cctx)
 		defer closer()
 
-		// Wait for actor address to appear on chain
-		time.Sleep(time.Millisecond * 500)
-
 		minerAddr, err := miner.ActorAddress(cctx.Context)
 		require.NoError(t, err)
 
 		version, err := fc.Miner(minerAddr).Version(cctx.Context)
 		require.NoError(t, err)
 		fmt.Printf("Miner Version: %s\n", version)
+
+		return nil
+	}
+	require.NoError(t, app.Run([]string{""}))
+}
+
+func TestQueryStorageAsk(t *testing.T) {
+	app := cli.NewApp()
+	app.Action = func(cctx *cli.Context) error {
+		_, miner, _, fc, closer := initEnsemble(t, cctx)
+		defer closer()
+
+		minerAddr, err := miner.ActorAddress(cctx.Context)
+		require.NoError(t, err)
+
+		ask, _, err := fc.Miner(minerAddr).QueryStorageAskUnchecked(cctx.Context)
+		require.NoError(t, err)
+
+		fmt.Printf("Ask: %#v", ask)
 
 		return nil
 	}
@@ -130,6 +146,11 @@ func initEnsemble(t *testing.T, cctx *cli.Context) (*kit.TestFullNode, *kit.Test
 	if err != nil {
 		t.Fatalf("Could not initialize FilClient: %v", err)
 	}
+
+	// Wait for actor address to appear on chain
+	time.Sleep(time.Millisecond * 500)
+
+	fmt.Printf("Ready\n")
 
 	return client, miner, ensemble, fc, closer
 }
