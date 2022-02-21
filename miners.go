@@ -6,23 +6,44 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 	core "github.com/libp2p/go-libp2p-core"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/multiformats/go-multiaddr"
 )
 
 var (
 	ErrMinerConnectionFailed = errors.New("miner connection failed")
+	ErrMinerStreamFailed     = errors.New("stream failed")
 )
 
-func (fc *FilClient) MinerVersion(ctx context.Context, miner address.Address) (string, error) {
-	peer, err := fc.connectToMiner(ctx, miner)
+// A miner handle contains all the functions used to interact with the miner
+type MinerHandle struct {
+	addr address.Address
+	host host.Host
+	api  api.Gateway
+}
+
+func (fc *FilClient) Miner(addr address.Address) MinerHandle {
+	return MinerHandle{
+		addr: addr,
+		host: fc.host,
+		api:  fc.api,
+	}
+}
+
+// Looks up the version string of the miner
+func (handle MinerHandle) Version(ctx context.Context) (string, error) {
+	peer, err := handle.Connect(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	version, err := fc.host.Peerstore().Get(peer, "AgentVersion")
+	version, err := handle.host.Peerstore().Get(peer, "AgentVersion")
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
@@ -30,10 +51,27 @@ func (fc *FilClient) MinerVersion(ctx context.Context, miner address.Address) (s
 	return version.(string), nil
 }
 
+// Opens a P2P stream to the miner
+func (handle MinerHandle) Stream(ctx context.Context, protocol protocol.ID) (network.Stream, error) {
+	peer, err := handle.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	stream, err := handle.host.NewStream(ctx, peer, protocol)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrMinerStreamFailed, err)
+	}
+
+	return stream, nil
+}
+
+// Makes sure that the miner is connected
+//
 // BEHAVIOR CHANGE - no longer errors on invalid multiaddr if at least one valid
 // multiaddr exists
-func (fc *FilClient) connectToMiner(ctx context.Context, miner address.Address) (core.PeerID, error) {
-	info, err := fc.api.StateMinerInfo(ctx, miner, types.EmptyTSK)
+func (handle MinerHandle) Connect(ctx context.Context) (core.PeerID, error) {
+	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
@@ -69,7 +107,7 @@ func (fc *FilClient) connectToMiner(ctx context.Context, miner address.Address) 
 		return "", fmt.Errorf("%w: miner info has no multiaddrs", ErrMinerConnectionFailed)
 	}
 
-	if err := fc.host.Connect(ctx, peer.AddrInfo{
+	if err := handle.host.Connect(ctx, peer.AddrInfo{
 		ID:    *info.PeerId,
 		Addrs: multiaddrs,
 	}); err != nil {

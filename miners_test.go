@@ -39,7 +39,7 @@ func TestMinerVersion(t *testing.T) {
 		minerAddr, err := miner.ActorAddress(cctx.Context)
 		require.NoError(t, err)
 
-		version, err := fc.MinerVersion(cctx.Context, minerAddr)
+		version, err := fc.Miner(minerAddr).Version(cctx.Context)
 		require.NoError(t, err)
 		fmt.Printf("Miner Version: %s\n", version)
 
