@@ -2,6 +2,7 @@ package filclient
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket/network"
@@ -19,6 +20,10 @@ func (handle MinerHandle) QueryStorageAskUnchecked(ctx context.Context) (storage
 	var resp network.AskResponse
 	if err := handle.runSingleRPC(ctx, &req, &resp, protocol); err != nil {
 		return storagemarket.StorageAsk{}, crypto.Signature{}, err
+	}
+
+	if resp.Ask == nil || resp.Ask.Ask == nil || resp.Ask.Signature == nil {
+		return storagemarket.StorageAsk{}, crypto.Signature{}, fmt.Errorf("seemingly valid response contained nil fields")
 	}
 
 	return *resp.Ask.Ask, *resp.Ask.Signature, nil
