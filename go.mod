@@ -7,16 +7,17 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 require (
 	github.com/filecoin-project/go-address v0.0.6
 	github.com/filecoin-project/go-cbor-util v0.0.1
-	github.com/filecoin-project/go-fil-markets v1.20.1
+	github.com/filecoin-project/go-fil-markets v1.20.2-0.20220509100709-5b96975b1577
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/filecoin-project/go-state-types v0.1.7
 	github.com/filecoin-project/lotus v1.15.2
 	github.com/filecoin-project/specs-actors/v6 v6.0.2
+	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-ds-flatfs v0.5.1
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-ipfs-blockstore v1.1.2
-	github.com/ipfs/go-log/v2 v2.5.1
+	github.com/ipfs/go-log v1.0.5
 	github.com/libp2p/go-libp2p-core v0.15.1
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/stretchr/testify v1.7.1
@@ -46,7 +47,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
-	github.com/cilium/ebpf v0.4.0 // indirect
+	github.com/cilium/ebpf v0.6.2 // indirect
 	github.com/containerd/cgroups v1.0.3 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
@@ -89,7 +90,7 @@ require (
 	github.com/filecoin-project/go-statemachine v1.0.2 // indirect
 	github.com/filecoin-project/go-statestore v0.2.0 // indirect
 	github.com/filecoin-project/go-storedcounter v0.1.0 // indirect
-	github.com/filecoin-project/index-provider v0.5.0 // indirect
+	github.com/filecoin-project/index-provider v0.7.0 // indirect
 	github.com/filecoin-project/specs-actors v0.9.14 // indirect
 	github.com/filecoin-project/specs-actors/v2 v2.3.6 // indirect
 	github.com/filecoin-project/specs-actors/v3 v3.1.2 // indirect
@@ -97,7 +98,7 @@ require (
 	github.com/filecoin-project/specs-actors/v5 v5.0.5 // indirect
 	github.com/filecoin-project/specs-actors/v7 v7.0.0 // indirect
 	github.com/filecoin-project/specs-storage v0.2.2 // indirect
-	github.com/filecoin-project/storetheindex v0.3.5 // indirect
+	github.com/filecoin-project/storetheindex v0.4.0 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
@@ -135,7 +136,6 @@ require (
 	github.com/ipfs/go-bitswap v0.5.1 // indirect
 	github.com/ipfs/go-block-format v0.0.3 // indirect
 	github.com/ipfs/go-blockservice v0.2.1 // indirect
-	github.com/ipfs/go-cid v0.1.0 // indirect
 	github.com/ipfs/go-cidutil v0.0.2 // indirect
 	github.com/ipfs/go-ds-badger2 v0.1.2 // indirect
 	github.com/ipfs/go-ds-measure v0.2.0 // indirect
@@ -159,7 +159,7 @@ require (
 	github.com/ipfs/go-ipld-format v0.2.0 // indirect
 	github.com/ipfs/go-ipld-legacy v0.1.1 // indirect
 	github.com/ipfs/go-ipns v0.1.2 // indirect
-	github.com/ipfs/go-log v1.0.5 // indirect
+	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/ipfs/go-merkledag v0.5.1 // indirect
 	github.com/ipfs/go-metrics-interface v0.0.1 // indirect
 	github.com/ipfs/go-path v0.2.1 // indirect
@@ -168,8 +168,8 @@ require (
 	github.com/ipfs/go-unixfsnode v1.4.0 // indirect
 	github.com/ipfs/go-verifcid v0.0.1 // indirect
 	github.com/ipfs/interface-go-ipfs-core v0.5.2 // indirect
-	github.com/ipld/go-car v0.3.3 // indirect
-	github.com/ipld/go-car/v2 v2.1.1 // indirect
+	github.com/ipld/go-car v0.3.4-0.20220124154420-9c7956a6eb9d // indirect
+	github.com/ipld/go-car/v2 v2.1.2-0.20220124154420-9c7956a6eb9d // indirect
 	github.com/ipld/go-codec-dagpb v1.4.0 // indirect
 	github.com/ipld/go-ipld-prime v0.16.0 // indirect
 	github.com/ipld/go-ipld-selector-text-lite v0.0.1 // indirect
@@ -191,12 +191,12 @@ require (
 	github.com/libp2p/go-conn-security-multistream v0.3.0 // indirect
 	github.com/libp2p/go-eventbus v0.2.1 // indirect
 	github.com/libp2p/go-flow-metrics v0.0.3 // indirect
-	github.com/libp2p/go-libp2p v0.19.0 // indirect
+	github.com/libp2p/go-libp2p v0.19.1 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-blankhost v0.3.0 // indirect
 	github.com/libp2p/go-libp2p-connmgr v0.3.1 // indirect
 	github.com/libp2p/go-libp2p-discovery v0.6.0 // indirect
-	github.com/libp2p/go-libp2p-gostream v0.3.1 // indirect
+	github.com/libp2p/go-libp2p-gostream v0.3.2-0.20220309102559-3d4abe2a19ac // indirect
 	github.com/libp2p/go-libp2p-kad-dht v0.15.0 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.4.7 // indirect
 	github.com/libp2p/go-libp2p-loggables v0.1.0 // indirect
@@ -215,6 +215,7 @@ require (
 	github.com/libp2p/go-libp2p-transport-upgrader v0.7.1 // indirect
 	github.com/libp2p/go-libp2p-yamux v0.9.1 // indirect
 	github.com/libp2p/go-maddr-filter v0.1.0 // indirect
+	github.com/libp2p/go-mplex v0.6.0 // indirect
 	github.com/libp2p/go-msgio v0.2.0 // indirect
 	github.com/libp2p/go-nat v0.1.0 // indirect
 	github.com/libp2p/go-netroute v0.2.0 // indirect
@@ -256,7 +257,7 @@ require (
 	github.com/nkovacs/streamquote v1.0.0 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/opencontainers/runtime-spec v1.0.2 // indirect
+	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/petar/GoLLRB v0.0.0-20210522233825-ae3b015fd3e9 // indirect
@@ -325,7 +326,7 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 	modernc.org/cc v1.0.0 // indirect
 	modernc.org/golex v1.0.1 // indirect
-	modernc.org/mathutil v1.1.1 // indirect
-	modernc.org/strutil v1.1.0 // indirect
+	modernc.org/mathutil v1.4.1 // indirect
+	modernc.org/strutil v1.1.1 // indirect
 	modernc.org/xc v1.0.0 // indirect
 )
