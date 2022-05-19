@@ -10,7 +10,6 @@ import (
 	cborutil "github.com/filecoin-project/go-cbor-util"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
-	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -25,19 +24,54 @@ var (
 	ErrCBORReadFailed        = errors.New("CBOR read failed")
 )
 
-// A miner handle contains all the functions used to interact with the miner
+// A miner handle contains all the functions used to interact with the miner,
+// and facilitates mapping between addresses and peer IDs
 type MinerHandle struct {
+	// WARNING: may be uninitialized - use .Address()
 	addr address.Address
-	host host.Host
-	api  api.Gateway
+	// WARNING: may be uninitialized - use .PeerID()
+	peerID peer.ID
+	host   host.Host
+	api    api.Gateway
 }
 
-func (fc *FilClient) Miner(addr address.Address) MinerHandle {
+func (fc *FilClient) MinerByAddress(addr address.Address) MinerHandle {
 	return MinerHandle{
 		addr: addr,
 		host: fc.host,
 		api:  fc.api,
 	}
+}
+
+func (fc *FilClient) MinerByPeerID(peerID peer.ID) MinerHandle {
+	return MinerHandle{
+		peerID: peerID,
+		host:   fc.host,
+		api:    fc.api,
+	}
+}
+
+func (handle MinerHandle) Address(ctx context.Context) (address.Address, error) {
+	if handle.addr == address.Undef {
+		return address.Undef, fmt.Errorf("peer ID to address mapping is not yet implemented")
+	}
+
+	return handle.addr, nil
+}
+
+func (handle MinerHandle) PeerID(ctx context.Context) (peer.ID, error) {
+	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
+	}
+
+	if info.PeerId == nil {
+		return "", fmt.Errorf("%w: miner info has no peer ID set on chain", ErrLotusError)
+	}
+
+	handle.peerID = *info.PeerId
+
+	return handle.peerID, nil
 }
 
 // Looks up the version string of the miner
@@ -102,14 +136,17 @@ func (handle MinerHandle) runSingleRPC(ctx context.Context, req interface{}, res
 //
 // BEHAVIOR CHANGE - no longer errors on invalid multiaddr if at least one valid
 // multiaddr exists
-func (handle MinerHandle) Connect(ctx context.Context) (core.PeerID, error) {
+func (handle MinerHandle) Connect(ctx context.Context) (peer.ID, error) {
 	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
 
+	// We have to find the peer ID here anyway, so populate it
+	handle.peerID = *info.PeerId
+
 	if info.PeerId == nil {
-		return "", fmt.Errorf("%w: miner info has no peer ID set", ErrLotusError)
+		return "", fmt.Errorf("%w: miner info has no peer ID set on chain", ErrLotusError)
 	}
 
 	// Parse the multiaddr bytes

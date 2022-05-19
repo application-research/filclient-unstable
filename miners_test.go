@@ -29,32 +29,70 @@ import (
 
 func TestMinerVersion(t *testing.T) {
 	app := cli.NewApp()
-	app.Action = func(cctx *cli.Context) error {
-		_, miner, _, fc, closer := initEnsemble(t, cctx)
+	app.Action = func(ctx *cli.Context) error {
+		_, miner, _, fc, closer := initEnsemble(t, ctx)
 		defer closer()
 
-		minerAddr, err := miner.ActorAddress(cctx.Context)
+		minerAddr, err := miner.ActorAddress(ctx.Context)
 		require.NoError(t, err)
 
-		version, err := fc.Miner(minerAddr).Version(cctx.Context)
+		version, err := fc.MinerByAddress(minerAddr).Version(ctx.Context)
 		require.NoError(t, err)
-		fmt.Printf("Miner Version: %s\n", version)
+		fmt.Printf("Found miner version: %s\n", version)
 
 		return nil
 	}
 	require.NoError(t, app.Run([]string{""}))
 }
 
-func TestQueryStorageAsk(t *testing.T) {
+func TestMinerAddressToPeerID(t *testing.T) {
 	app := cli.NewApp()
-	app.Action = func(cctx *cli.Context) error {
-		_, miner, _, fc, closer := initEnsemble(t, cctx)
+	app.Action = func(ctx *cli.Context) error {
+		_, miner, _, fc, closer := initEnsemble(t, ctx)
 		defer closer()
 
-		minerAddr, err := miner.ActorAddress(cctx.Context)
+		minerAddr, err := miner.ActorAddress(ctx.Context)
 		require.NoError(t, err)
 
-		ask, _, err := fc.Miner(minerAddr).QueryStorageAskUnchecked(cctx.Context)
+		minerPeerID, err := fc.MinerByAddress(minerAddr).PeerID(ctx.Context)
+		require.NoError(t, err)
+		fmt.Printf("Mapped miner address %s to peer ID %s\n", minerAddr, minerPeerID)
+
+		return nil
+	}
+	require.NoError(t, app.Run([]string{""}))
+}
+
+// TODO: peer id -> address mapping is not functional yet
+
+// func TestMinerPeerIDToAddress(t *testing.T) {
+// 	app := cli.NewApp()
+// 	app.Action = func(ctx *cli.Context) error {
+// 		_, miner, _, fc, closer := initEnsemble(t, ctx)
+// 		defer closer()
+
+// 		minerPeerID, err := miner.ID(ctx.Context)
+// 		require.NoError(t, err)
+
+// 		minerAddr, err := fc.MinerByPeerID(minerPeerID).Address(ctx.Context)
+// 		require.NoError(t, err)
+// 		fmt.Printf("Mapped miner peer ID %s to address %s\n", minerPeerID, minerAddr)
+
+// 		return nil
+// 	}
+// 	require.NoError(t, app.Run([]string{""}))
+// }
+
+func TestQueryStorageAsk(t *testing.T) {
+	app := cli.NewApp()
+	app.Action = func(ctx *cli.Context) error {
+		_, miner, _, fc, closer := initEnsemble(t, ctx)
+		defer closer()
+
+		minerAddr, err := miner.ActorAddress(ctx.Context)
+		require.NoError(t, err)
+
+		ask, _, err := fc.MinerByAddress(minerAddr).QueryStorageAskUnchecked(ctx.Context)
 		require.NoError(t, err)
 
 		fmt.Printf("Ask: %#v\n", ask)
@@ -67,7 +105,7 @@ func TestQueryStorageAsk(t *testing.T) {
 // -- Setup functions
 
 // Create and set up an ensemble with linked filclient
-func initEnsemble(t *testing.T, cctx *cli.Context) (*kit.TestFullNode, *kit.TestMiner, *kit.Ensemble, *FilClient, func()) {
+func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestMiner, *kit.Ensemble, *FilClient, func()) {
 
 	fmt.Printf("Initializing test network...\n")
 
@@ -86,7 +124,7 @@ func initEnsemble(t *testing.T, cctx *cli.Context) (*kit.TestFullNode, *kit.Test
 	// set the *optional* on-chain multiaddr
 	// the mind boggles: there is no API call for that - got to assemble your own msg
 	{
-		minfo, err := miner.FullNode.StateMinerInfo(cctx.Context, miner.ActorAddr, lotustypes.EmptyTSK)
+		minfo, err := miner.FullNode.StateMinerInfo(ctx.Context, miner.ActorAddr, lotustypes.EmptyTSK)
 		require.NoError(t, err)
 
 		maddrNop2p, _ := multiaddr.SplitFunc(miner.ListenAddr, func(c multiaddr.Component) bool {
@@ -96,7 +134,7 @@ func initEnsemble(t *testing.T, cctx *cli.Context) (*kit.TestFullNode, *kit.Test
 		params, aerr := lotusactors.SerializeParams(&filminer.ChangeMultiaddrsParams{NewMultiaddrs: [][]byte{maddrNop2p.Bytes()}})
 		require.NoError(t, aerr)
 
-		_, err = miner.FullNode.MpoolPushMessage(cctx.Context, &lotustypes.Message{
+		_, err = miner.FullNode.MpoolPushMessage(ctx.Context, &lotustypes.Message{
 			To:     miner.ActorAddr,
 			From:   minfo.Worker,
 			Value:  lotustypes.NewInt(0),
@@ -109,13 +147,13 @@ func initEnsemble(t *testing.T, cctx *cli.Context) (*kit.TestFullNode, *kit.Test
 	fmt.Printf("Test client fullnode running on %s\n", client.ListenAddr)
 	os.Setenv("FULLNODE_API_INFO", client.ListenAddr.String())
 
-	client.WaitTillChain(cctx.Context, kit.BlockMinedBy(miner.ActorAddr))
+	client.WaitTillChain(ctx.Context, kit.BlockMinedBy(miner.ActorAddr))
 
 	// FilClient initialization
 	fmt.Printf("Initializing filclient...\n")
 
 	// give filc the pre-funded wallet from the client
-	ki, err := client.WalletExport(cctx.Context, client.DefaultKey.Address)
+	ki, err := client.WalletExport(ctx.Context, client.DefaultKey.Address)
 	require.NoError(t, err)
 	lr, err := lotusrepo.NewMemory(nil).Lock(lotusrepo.Wallet)
 	require.NoError(t, err)
@@ -123,7 +161,7 @@ func initEnsemble(t *testing.T, cctx *cli.Context) (*kit.TestFullNode, *kit.Test
 	require.NoError(t, err)
 	wallet, err := wallet.NewWallet(ks)
 	require.NoError(t, err)
-	_, err = wallet.WalletImport(cctx.Context, ki)
+	_, err = wallet.WalletImport(ctx.Context, ki)
 	require.NoError(t, err)
 
 	h, err := ensemble.Mocknet().GenPeer()
@@ -131,11 +169,11 @@ func initEnsemble(t *testing.T, cctx *cli.Context) (*kit.TestFullNode, *kit.Test
 		t.Fatalf("Could not gen p2p peer: %v", err)
 	}
 	ensemble.Mocknet().LinkAll()
-	api, closer := initAPI(t, cctx)
+	api, closer := initAPI(t, ctx)
 	bs := initBlockstore(t)
 	ds := initDatastore(t)
 	fc, err := New(
-		cctx.Context,
+		ctx.Context,
 		h,
 		api,
 		client.DefaultKey.Address,
@@ -155,8 +193,8 @@ func initEnsemble(t *testing.T, cctx *cli.Context) (*kit.TestFullNode, *kit.Test
 	return client, miner, ensemble, fc, closer
 }
 
-func initAPI(t *testing.T, cctx *cli.Context) (api.Gateway, jsonrpc.ClientCloser) {
-	api, closer, err := lcli.GetGatewayAPI(cctx)
+func initAPI(t *testing.T, ctx *cli.Context) (api.Gateway, jsonrpc.ClientCloser) {
+	api, closer, err := lcli.GetGatewayAPI(ctx)
 	if err != nil {
 		t.Fatalf("Could not initialize Lotus API gateway: %v", err)
 	}
