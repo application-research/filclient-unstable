@@ -9,6 +9,8 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 )
 
+// storage.go - all storage-related functions
+
 // TODO
 // func (handle *MinerHandle) QueryStorageAsk(ctx context.Context) (storagemarket.StorageAsk, error) {}
 

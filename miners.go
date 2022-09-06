@@ -17,6 +17,8 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
+// miners.go - code for managing information about individual miners
+
 var (
 	ErrMinerConnectionFailed = errors.New("miner connection failed")
 	ErrMinerStreamFailed     = errors.New("stream failed")
@@ -35,19 +37,19 @@ type MinerHandle struct {
 	api    api.Gateway
 }
 
-func (fc *FilClient) MinerByAddress(addr address.Address) MinerHandle {
-	return MinerHandle{
+func (client *Client) MinerByAddress(addr address.Address) *MinerHandle {
+	return &MinerHandle{
 		addr: addr,
-		host: fc.host,
-		api:  fc.api,
+		host: client.host,
+		api:  client.api,
 	}
 }
 
-func (fc *FilClient) MinerByPeerID(peerID peer.ID) MinerHandle {
-	return MinerHandle{
+func (client *Client) MinerByPeerID(peerID peer.ID) *MinerHandle {
+	return &MinerHandle{
 		peerID: peerID,
-		host:   fc.host,
-		api:    fc.api,
+		host:   client.host,
+		api:    client.api,
 	}
 }
 

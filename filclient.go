@@ -11,6 +11,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 )
 
+// filclient.go - code related to initialization and management of the core
+// FilClient struct
+
 var (
 	ErrLotusError = errors.New("lotus error")
 )
@@ -18,7 +21,7 @@ var (
 type Config struct {
 }
 
-type FilClient struct {
+type Client struct {
 	host host.Host
 	api  api.Gateway
 }
@@ -32,7 +35,7 @@ func New(
 	ds datastore.Batching,
 	dataDir string,
 	opts ...Option,
-) (*FilClient, error) {
+) (*Client, error) {
 	cfg := Config{}
 
 	for _, opt := range opts {
@@ -45,7 +48,7 @@ func New(
 
 	// paychDS := paychmgr.NewStore(namespace.Wrap(ds, datastore.NewKey("paych")))
 
-	return &FilClient{
+	return &Client{
 		host: h,
 		api:  api,
 	}, nil

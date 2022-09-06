@@ -30,7 +30,7 @@ import (
 // -- Setup functions
 
 // Create and set up an ensemble with linked filclient
-func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestMiner, *kit.Ensemble, *FilClient, func()) {
+func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestMiner, *kit.Ensemble, *Client, func()) {
 
 	fmt.Printf("Initializing test network...\n")
 
