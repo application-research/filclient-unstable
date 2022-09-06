@@ -51,7 +51,7 @@ func (fc *FilClient) MinerByPeerID(peerID peer.ID) MinerHandle {
 	}
 }
 
-func (handle MinerHandle) Address(ctx context.Context) (address.Address, error) {
+func (handle *MinerHandle) Address(ctx context.Context) (address.Address, error) {
 	if handle.addr == address.Undef {
 		return address.Undef, fmt.Errorf("peer ID to address mapping is not yet implemented")
 	}
@@ -59,7 +59,7 @@ func (handle MinerHandle) Address(ctx context.Context) (address.Address, error) 
 	return handle.addr, nil
 }
 
-func (handle MinerHandle) PeerID(ctx context.Context) (peer.ID, error) {
+func (handle *MinerHandle) PeerID(ctx context.Context) (peer.ID, error) {
 	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
@@ -75,7 +75,7 @@ func (handle MinerHandle) PeerID(ctx context.Context) (peer.ID, error) {
 }
 
 // Looks up the version string of the miner
-func (handle MinerHandle) Version(ctx context.Context) (string, error) {
+func (handle *MinerHandle) Version(ctx context.Context) (string, error) {
 	peer, err := handle.Connect(ctx)
 	if err != nil {
 		return "", err
@@ -90,7 +90,7 @@ func (handle MinerHandle) Version(ctx context.Context) (string, error) {
 }
 
 // Opens a P2P stream to the miner
-func (handle MinerHandle) stream(ctx context.Context, protocols ...protocol.ID) (network.Stream, error) {
+func (handle *MinerHandle) stream(ctx context.Context, protocols ...protocol.ID) (network.Stream, error) {
 	peer, err := handle.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func (handle MinerHandle) stream(ctx context.Context, protocols ...protocol.ID) 
 // ideal for multiple requests
 //
 // TODO: generics
-func (handle MinerHandle) runSingleRPC(ctx context.Context, req interface{}, resp interface{}, protocols ...protocol.ID) error {
+func (handle *MinerHandle) runSingleRPC(ctx context.Context, req interface{}, resp interface{}, protocols ...protocol.ID) error {
 	stream, err := handle.stream(ctx, protocols...)
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func (handle MinerHandle) runSingleRPC(ctx context.Context, req interface{}, res
 //
 // BEHAVIOR CHANGE - no longer errors on invalid multiaddr if at least one valid
 // multiaddr exists
-func (handle MinerHandle) Connect(ctx context.Context) (peer.ID, error) {
+func (handle *MinerHandle) Connect(ctx context.Context) (peer.ID, error) {
 	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
