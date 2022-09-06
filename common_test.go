@@ -34,7 +34,6 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 
 	fmt.Printf("Initializing test network...\n")
 
-	kit.EnableLargeSectors(t)
 	kit.QuietMiningLogs()
 
 	log.SetLogLevel("*", "ERROR")
