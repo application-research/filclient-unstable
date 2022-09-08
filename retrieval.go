@@ -9,7 +9,7 @@ import (
 
 // retrieval.go - all retrieval-related functions
 
-func (handle MinerHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
+func (handle *MinerHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
 	const protocol = "/fil/retrieval/qry/1.0.0"
 
 	req := retrievalmarket.Query{PayloadCID: payloadCid}
