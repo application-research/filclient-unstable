@@ -8,9 +8,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
-	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
@@ -33,23 +31,20 @@ type MinerHandle struct {
 	addr address.Address
 	// WARNING: may be uninitialized - use .PeerID()
 	peerID peer.ID
-	host   host.Host
-	api    api.Gateway
+	client *Client
 }
 
 func (client *Client) MinerByAddress(addr address.Address) *MinerHandle {
 	return &MinerHandle{
-		addr: addr,
-		host: client.host,
-		api:  client.api,
+		addr:   addr,
+		client: client,
 	}
 }
 
 func (client *Client) MinerByPeerID(peerID peer.ID) *MinerHandle {
 	return &MinerHandle{
 		peerID: peerID,
-		host:   client.host,
-		api:    client.api,
+		client: client,
 	}
 }
 
@@ -62,7 +57,7 @@ func (handle *MinerHandle) Address(ctx context.Context) (address.Address, error)
 }
 
 func (handle *MinerHandle) PeerID(ctx context.Context) (peer.ID, error) {
-	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
+	info, err := handle.client.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
@@ -83,7 +78,7 @@ func (handle *MinerHandle) Version(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	version, err := handle.host.Peerstore().Get(peer, "AgentVersion")
+	version, err := handle.client.host.Peerstore().Get(peer, "AgentVersion")
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
@@ -98,7 +93,7 @@ func (handle *MinerHandle) stream(ctx context.Context, protocols ...protocol.ID)
 		return nil, err
 	}
 
-	stream, err := handle.host.NewStream(ctx, peer, protocols...)
+	stream, err := handle.client.host.NewStream(ctx, peer, protocols...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrMinerStreamFailed, err)
 	}
@@ -139,7 +134,7 @@ func (handle *MinerHandle) runSingleRPC(ctx context.Context, req interface{}, re
 // BEHAVIOR CHANGE - no longer errors on invalid multiaddr if at least one valid
 // multiaddr exists
 func (handle *MinerHandle) Connect(ctx context.Context) (peer.ID, error) {
-	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
+	info, err := handle.client.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
@@ -178,7 +173,7 @@ func (handle *MinerHandle) Connect(ctx context.Context) (peer.ID, error) {
 		return "", fmt.Errorf("%w: miner info has no multiaddrs", ErrMinerConnectionFailed)
 	}
 
-	if err := handle.host.Connect(ctx, peer.AddrInfo{
+	if err := handle.client.host.Connect(ctx, peer.AddrInfo{
 		ID:    *info.PeerId,
 		Addrs: multiaddrs,
 	}); err != nil {

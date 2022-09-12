@@ -103,7 +103,6 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 		client.DefaultKey.Address,
 		bs,
 		ds,
-		t.TempDir(),
 	) // WithWallet(wallet)
 	if err != nil {
 		t.Fatalf("Could not initialize FilClient: %v", err)
