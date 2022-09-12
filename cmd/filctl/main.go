@@ -7,9 +7,13 @@ import (
 	"os/signal"
 
 	"github.com/application-research/filclient"
+	"github.com/dustin/go-humanize"
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
+	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/jedib0t/go-pretty/v6/table"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
@@ -95,7 +99,27 @@ func cmdRetrieve(ctx *cli.Context) error {
 		return fmt.Errorf("retrieval query failed: %v", err)
 	}
 
-	log.Infof("%#+v", res)
+	t := table.NewWriter()
+	t.SetStyle(table.StyleLight)
+	t.AppendRow(table.Row{"Available", res.Status == retrievalmarket.QueryResponseAvailable})
+	if res.Status == retrievalmarket.QueryResponseAvailable {
+		totalPrice := types.BigAdd(
+			types.BigInt(res.UnsealPrice),
+			types.BigMul(res.MinPricePerByte, types.NewInt(res.Size)),
+		)
+
+		t.AppendRow(table.Row{"Retrievable", res.PieceCIDFound == retrievalmarket.QueryItemAvailable})
+		t.AppendRow(table.Row{"Size", humanize.IBytes(res.Size)})
+		t.AppendSeparator()
+		t.AppendRow(table.Row{"Total Price", types.FIL(totalPrice)})
+		t.AppendRow(table.Row{"Unseal Price", types.FIL(res.UnsealPrice)})
+		t.AppendRow(table.Row{"Price Per Byte", types.FIL(res.MinPricePerByte)})
+		t.AppendRow(table.Row{"Payment Interval", humanize.IBytes(res.MaxPaymentInterval)})
+		t.AppendRow(table.Row{"Payment Interval Increase", humanize.IBytes(res.MaxPaymentIntervalIncrease)})
+		t.AppendRow(table.Row{"Payment Address", res.PaymentAddress})
+	}
+	t.SetCaption(res.Message)
+	fmt.Printf("%s\n", t.Render())
 
 	// If not in query-only mode, do the retrieval
 	if !queryOnly {

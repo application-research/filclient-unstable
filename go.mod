@@ -5,6 +5,7 @@ go 1.18
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 require (
+	github.com/dustin/go-humanize v1.0.0
 	github.com/filecoin-project/go-address v1.0.0
 	github.com/filecoin-project/go-cbor-util v0.0.1
 	github.com/filecoin-project/go-data-transfer v1.15.2
@@ -22,11 +23,12 @@ require (
 	github.com/ipfs/go-log v1.0.5
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipld/go-ipld-prime v0.17.0
+	github.com/jedib0t/go-pretty/v6 v6.3.8
 	github.com/libp2p/go-libp2p v0.20.3
 	github.com/libp2p/go-libp2p-core v0.16.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.5.0
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.7.4
 	github.com/urfave/cli/v2 v2.8.1
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df
@@ -75,7 +77,6 @@ require (
 	github.com/drand/drand v1.3.0 // indirect
 	github.com/drand/kyber v1.1.7 // indirect
 	github.com/drand/kyber-bls12381 v0.2.1 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/elastic/go-sysinfo v1.7.0 // indirect
 	github.com/elastic/go-windows v1.0.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
@@ -228,7 +229,7 @@ require (
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
 	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/mattn/go-runewidth v0.0.10 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/miekg/dns v1.1.48 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
@@ -263,7 +264,7 @@ require (
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/raulk/clock v1.1.0 // indirect
 	github.com/raulk/go-watchdog v1.2.0 // indirect
-	github.com/rivo/uniseg v0.1.0 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v2.18.12+incompatible // indirect
@@ -309,7 +310,7 @@ require (
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
