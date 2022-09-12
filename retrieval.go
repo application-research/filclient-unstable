@@ -52,6 +52,8 @@ func (handle *MinerHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid
 	return resp, nil
 }
 
+// WIP
+//
 // Sets up params for a retrieval deal which can then be started with
 // StartRetrievalTransfer()
 func (handle *MinerHandle) InitRetrievalTransfer(
@@ -96,6 +98,7 @@ func (handle *MinerHandle) InitRetrievalTransfer(
 	}, nil
 }
 
+// WIP
 func (handle *MinerHandle) StartRetrievalTransfer(
 	ctx context.Context,
 	transfer *RetrievalTransfer,
@@ -122,6 +125,7 @@ func (handle *MinerHandle) StartRetrievalTransfer(
 	return nil
 }
 
+// WIP
 func (handle *MinerHandle) StopRetrievalTransfer(
 	ctx context.Context,
 	transfer *RetrievalTransfer,
