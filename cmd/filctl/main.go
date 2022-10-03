@@ -121,9 +121,19 @@ func cmdRetrieve(ctx *cli.Context) error {
 	t.SetCaption(res.Message)
 	fmt.Printf("%s\n", t.Render())
 
-	// If not in query-only mode, do the retrieval
-	if !queryOnly {
-		log.Fatalf("Only queries are supported")
+	// If in query-only mode, finish off now
+	if queryOnly {
+		return nil
+	}
+
+	transfer, err := handle.StartRetrievalTransfer(ctx.Context, payloadCid)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-transfer.Done():
+	case <-ctx.Done():
 	}
 
 	return nil

@@ -21,7 +21,7 @@ import (
 	flatfs "github.com/ipfs/go-ds-flatfs"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
-	"github.com/ipfs/go-log"
+	logging "github.com/ipfs/go-log"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
@@ -36,7 +36,7 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 
 	kit.QuietMiningLogs()
 
-	log.SetLogLevel("*", "ERROR")
+	logging.SetLogLevel("*", "ERROR")
 
 	client, miner, ensemble := kit.EnsembleMinimal(t,
 		kit.ThroughRPC(),        // so filclient can talk to it

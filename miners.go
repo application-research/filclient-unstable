@@ -48,6 +48,10 @@ func (client *Client) MinerByPeerID(peerID peer.ID) *MinerHandle {
 	}
 }
 
+// Returns the stored address of the provider, or errors if it is not known
+//
+// In the future, this function may be able to derive the address from the peer
+// ID
 func (handle *MinerHandle) Address(ctx context.Context) (address.Address, error) {
 	if handle.addr == address.Undef {
 		return address.Undef, fmt.Errorf("peer ID to address mapping is not yet implemented")
@@ -56,6 +60,8 @@ func (handle *MinerHandle) Address(ctx context.Context) (address.Address, error)
 	return handle.addr, nil
 }
 
+// Returns the peer ID of the provider, looking it up on chain using the address
+// if not already stored
 func (handle *MinerHandle) PeerID(ctx context.Context) (peer.ID, error) {
 	info, err := handle.client.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
@@ -104,7 +110,7 @@ func (handle *MinerHandle) stream(ctx context.Context, protocols ...protocol.ID)
 // Sends a single RPC request, and puts the response into resp - handy but not
 // ideal for multiple requests
 //
-// TODO: generics
+// TODO(@elijaharita): generics
 func (handle *MinerHandle) runSingleRPC(ctx context.Context, req interface{}, resp interface{}, protocols ...protocol.ID) error {
 	stream, err := handle.stream(ctx, protocols...)
 	if err != nil {

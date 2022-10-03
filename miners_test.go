@@ -44,7 +44,7 @@ func TestMinerAddressToPeerID(t *testing.T) {
 	require.NoError(t, app.Run([]string{""}))
 }
 
-// TODO: peer id -> address mapping is not functional yet
+// TODO(@elijaharita): peer id -> address mapping is not functional yet
 
 // func TestMinerPeerIDToAddress(t *testing.T) {
 // 	app := cli.NewApp()

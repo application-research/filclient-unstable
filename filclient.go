@@ -17,11 +17,14 @@ import (
 	gsnet "github.com/ipfs/go-graphsync/network"
 	"github.com/ipfs/go-graphsync/storeutil"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
+	logging "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-core/host"
 )
 
 // filclient.go - code related to initialization and management of the core
 // FilClient struct
+
+var log = logging.Logger("filclient")
 
 var (
 	ErrLotusError = errors.New("lotus error")
@@ -31,11 +34,15 @@ type Config struct {
 }
 
 type Client struct {
-	host               host.Host
-	api                api.Gateway
-	dt                 datatransfer.Manager
-	dtUnsubscribe      datatransfer.Unsubscribe
-	retrievalTransfers map[datatransfer.ChannelID]*RetrievalTransfer
+	host          host.Host
+	api           api.Gateway
+	dt            datatransfer.Manager
+	dtUnsubscribe datatransfer.Unsubscribe
+	bs            blockstore.Blockstore
+	ds            datastore.Datastore
+
+	// TODO(@elijaharita): this shouldn't be in the main Client struct
+	retrievalTransfers map[retrievalmarket.DealID]RetrievalTransfer
 }
 
 func New(
@@ -68,9 +75,18 @@ func New(
 		host: h,
 		api:  api,
 		dt:   dt,
+		// dtUnsubscribe: assigned below
+		bs:                 bs,
+		ds:                 ds,
+		retrievalTransfers: make(map[retrievalmarket.DealID]RetrievalTransfer),
 	}
 
-	go client.handleDataTransferEvents()
+	client.dtUnsubscribe = dt.SubscribeToEvents(func(
+		event datatransfer.Event,
+		channelState datatransfer.ChannelState,
+	) {
+		client.handleDataTransferRetrievalEvent(ctx, event, channelState)
+	})
 
 	return client, nil
 }
@@ -79,17 +95,6 @@ func (client *Client) Close() {
 	if client.dtUnsubscribe != nil {
 		client.dtUnsubscribe()
 	}
-}
-
-func (client *Client) handleDataTransferEvents() {
-	client.dtUnsubscribe = client.dt.SubscribeToEvents(func(
-		event datatransfer.Event,
-		channelState datatransfer.ChannelState,
-	) {
-		// if transfer, ok := client.retrievalTransfers[channelState.ChannelID()]; ok {
-		// 	transfer.handleEvent(event)
-		// }
-	})
 }
 
 func initDataTransfer(
@@ -108,23 +113,30 @@ func initDataTransfer(
 		return nil, err
 	}
 
-	err = dt.RegisterVoucherType(&requestvalidation.StorageDataTransferVoucher{}, nil)
-	if err != nil {
+	if err := dt.RegisterVoucherType(
+		&requestvalidation.StorageDataTransferVoucher{},
+		nil,
+	); err != nil {
 		return nil, err
 	}
 
-	err = dt.RegisterVoucherType(&retrievalmarket.DealProposal{}, nil)
-	if err != nil {
+	if err := dt.RegisterVoucherType(
+		&retrievalmarket.DealProposal{},
+		nil,
+	); err != nil {
 		return nil, err
 	}
 
-	err = dt.RegisterVoucherType(&retrievalmarket.DealPayment{}, nil)
-	if err != nil {
+	if err := dt.RegisterVoucherType(
+		&retrievalmarket.DealPayment{},
+		nil,
+	); err != nil {
 		return nil, err
 	}
 
-	err = dt.RegisterVoucherResultType(&retrievalmarket.DealResponse{})
-	if err != nil {
+	if err := dt.RegisterVoucherResultType(
+		&retrievalmarket.DealResponse{},
+	); err != nil {
 		return nil, err
 	}
 
