@@ -68,6 +68,15 @@ func main() {
 					Usage: "How many results to return",
 					Value: 10,
 				},
+				&cli.UintFlag{
+					Name:  "per-provider-count",
+					Usage: "The maximum amount of results to return from a single provider",
+					Value: 1,
+				},
+				&cli.UintFlag{
+					Name:  "offset",
+					Usage: "How many deals back to start (useful if you want to find deals from longer ago)",
+				},
 			},
 		},
 	}
@@ -93,6 +102,10 @@ func cmdFindDeals(ctx *cli.Context) error {
 	}
 
 	count := ctx.Uint("count")
+
+	perProviderCount := ctx.Uint("per-provider-count")
+
+	offset := ctx.Uint("offset")
 
 	filctl, err := New(ctx, dataDir(ctx))
 	if err != nil {
@@ -126,8 +139,9 @@ func cmdFindDeals(ctx *cli.Context) error {
 	}
 
 	currCount := uint(0)
+	currProviderCounts := make(map[address.Address]uint)
 
-	for i := firstUnusedDealID - 1; i > 0; i-- {
+	for i := firstUnusedDealID - 1 - abi.DealID(offset); i > 0; i-- {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -145,9 +159,13 @@ func cmdFindDeals(ctx *cli.Context) error {
 			continue
 		}
 
+		if currProviderCounts[proposal.Provider] == perProviderCount {
+			continue
+		}
+
 		payloadCid, err := findPayloadCid(*proposal)
 		if err != nil {
-			log.Errorf("Could not extract payload CID from deal ID %d: %v", i, err)
+			log.Debugf("Could not extract payload CID from deal ID %d: %v", i, err)
 			continue
 		}
 
@@ -167,6 +185,7 @@ func cmdFindDeals(ctx *cli.Context) error {
 		)
 
 		currCount++
+		currProviderCounts[proposal.Provider]++
 	}
 
 	return nil
