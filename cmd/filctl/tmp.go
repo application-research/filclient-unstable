@@ -4,12 +4,16 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/filecoin-project/go-state-types/builtin/v8/market"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
+	"github.com/ipfs/go-cid"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/whyrusleeping/base32"
 	"golang.org/x/xerrors"
@@ -196,4 +200,33 @@ func (fsr *DiskKeyStore) Delete(name string) error {
 		return xerrors.Errorf("deleting key '%s': %w", name, err)
 	}
 	return nil
+}
+
+func findPayloadCid(proposal market.DealProposal) (cid.Cid, error) {
+
+	// Split the label by whitespace and attempt to parse each element
+	// as a CID, finishing when one is found, otherwise moving on to the
+	// next deal
+	labelStr, err := proposal.Label.ToString()
+	if err != nil {
+		return cid.Undef, err
+	}
+
+	labelTokens := strings.Fields(labelStr)
+	var payloadCid cid.Cid
+	for _, token := range labelTokens {
+		parsedCid, err := cid.Parse(token)
+		if err != nil {
+			continue
+		}
+
+		payloadCid = parsedCid
+		break
+	}
+
+	if !payloadCid.Defined() {
+		return cid.Undef, fmt.Errorf("could not find payload CID in label '%s'", labelStr)
+	}
+
+	return payloadCid, nil
 }

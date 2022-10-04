@@ -6,6 +6,7 @@ import (
 
 	"github.com/application-research/filclient"
 	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/filecoin-project/lotus/api"
 	lcli "github.com/filecoin-project/lotus/cli"
 	flatfs "github.com/ipfs/go-ds-flatfs"
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -16,6 +17,7 @@ import (
 
 type Filctl struct {
 	client    *filclient.Client
+	api       api.Gateway
 	apiCloser jsonrpc.ClientCloser
 }
 
@@ -67,6 +69,7 @@ func New(ctx *cli.Context, dataDir string) (*Filctl, error) {
 
 	return &Filctl{
 		client:    client,
+		api:       api,
 		apiCloser: apiCloser,
 	}, nil
 }

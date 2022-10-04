@@ -10,7 +10,12 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
+	"github.com/filecoin-project/go-state-types/abi"
+	lblockstore "github.com/filecoin-project/lotus/blockstore"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
+	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/specs-actors/v8/actors/builtin"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -50,6 +55,21 @@ func main() {
 				},
 			},
 		},
+		{
+			Name:   "find-deals",
+			Action: cmdFindDeals,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "max-size",
+					Usage: "Max piece size to search for (ex. '10000', '1GiB')",
+				},
+				&cli.UintFlag{
+					Name:  "count",
+					Usage: "How many results to return",
+					Value: 10,
+				},
+			},
+		},
 	}
 	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Fatalf("Command failed: %v", err)
@@ -63,6 +83,93 @@ func dataDir(ctx *cli.Context) string {
 		return "data"
 	}
 	return dataDir
+}
+
+func cmdFindDeals(ctx *cli.Context) error {
+	maxSizeStr := ctx.String("max-size")
+	maxSize, err := humanize.ParseBytes(maxSizeStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse --max-size: %v", err)
+	}
+
+	count := ctx.Uint("count")
+
+	filctl, err := New(ctx, dataDir(ctx))
+	if err != nil {
+		return err
+	}
+
+	ts, err := filctl.api.ChainHead(ctx.Context)
+	if err != nil {
+		return err
+	}
+
+	marketActor, err := filctl.api.StateGetActor(ctx.Context, builtin.StorageMarketActorAddr, ts.Key())
+	if err != nil {
+		return err
+	}
+
+	actorStore := store.ActorStore(ctx.Context, lblockstore.NewAPIBlockstore(filctl.api))
+	marketState, err := market.Load(actorStore, marketActor)
+	if err != nil {
+		return err
+	}
+
+	proposals, err := marketState.Proposals()
+	if err != nil {
+		return err
+	}
+
+	firstUnusedDealID, err := marketState.NextID()
+	if err != nil {
+		return err
+	}
+
+	currCount := uint(0)
+
+	for i := firstUnusedDealID - 1; i > 0; i-- {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		if currCount == count {
+			break
+		}
+
+		proposal, ok, err := proposals.Get(abi.DealID(i))
+		if err != nil {
+			log.Errorf("Failed to load deal ID %d: %v", i, err)
+			continue
+		}
+		if !ok {
+			continue
+		}
+
+		payloadCid, err := findPayloadCid(*proposal)
+		if err != nil {
+			log.Errorf("Could not extract payload CID from deal ID %d: %v", i, err)
+			continue
+		}
+
+		if payloadCid.Prefix().GetCodec() == cid.Raw {
+			continue
+		}
+
+		if uint64(proposal.PieceSize) > maxSize {
+			continue
+		}
+
+		fmt.Printf(
+			"(%s) %s %s\n",
+			humanize.IBytes(uint64(proposal.PieceSize)),
+			proposal.Provider,
+			payloadCid,
+		)
+
+		currCount++
+	}
+
+	return nil
 }
 
 func cmdRetrieve(ctx *cli.Context) error {
@@ -137,8 +244,4 @@ func cmdRetrieve(ctx *cli.Context) error {
 	}
 
 	return nil
-}
-
-func init() {
-
 }
