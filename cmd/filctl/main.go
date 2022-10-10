@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
+	"time"
 
 	"github.com/application-research/filclient"
 	"github.com/dustin/go-humanize"
@@ -27,7 +30,7 @@ import (
 var log = logging.Logger("filctl")
 
 func main() {
-	logging.SetLogLevel("filctl", "debug")
+	logging.SetLogLevel("filctl", "info")
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 
@@ -62,6 +65,7 @@ func main() {
 				&cli.StringFlag{
 					Name:  "max-size",
 					Usage: "Max piece size to search for (ex. '10000', '1GiB')",
+					Value: "64GiB",
 				},
 				&cli.UintFlag{
 					Name:  "count",
@@ -76,6 +80,11 @@ func main() {
 				&cli.UintFlag{
 					Name:  "offset",
 					Usage: "How many deals back to start (useful if you want to find deals from longer ago)",
+				},
+				&cli.BoolFlag{
+					Name:    "yes",
+					Aliases: []string{"y"},
+					Usage:   "Assume yes for default-yes prompts (or no default-no prompts)",
 				},
 			},
 		},
@@ -247,8 +256,17 @@ func cmdRetrieve(ctx *cli.Context) error {
 	t.SetCaption(res.Message)
 	fmt.Printf("%s\n", t.Render())
 
+	if res.Status != retrievalmarket.QueryResponseAvailable {
+		return nil
+	}
+
 	// If in query-only mode, finish off now
 	if queryOnly {
+		return nil
+	}
+
+	// Allow user to confirm the retrieval
+	if !prompt(ctx, "Continue with retrieval?", true) {
 		return nil
 	}
 
@@ -257,10 +275,46 @@ func cmdRetrieve(ctx *cli.Context) error {
 		return err
 	}
 
-	select {
-	case <-transfer.Done():
-	case <-ctx.Done():
+	for range time.Tick(time.Millisecond * 100) {
+		if ctx.Err() != nil {
+			break
+		}
+
+		if transfer.State().IsDone() {
+			break
+		}
+
+		fmt.Fprintf(
+			os.Stderr,
+			"\r%s / %s (%d / %d)",
+			humanize.IBytes(transfer.Progress()),
+			humanize.IBytes(transfer.Size()),
+			transfer.Progress(),
+			transfer.Size(),
+		)
 	}
 
+	fmt.Fprintf(os.Stdout, "\n")
+
 	return nil
+}
+
+func prompt(ctx *cli.Context, question string, defaultYes bool) bool {
+	if defaultYes {
+		fmt.Printf("%s [Y/n] ", question)
+	} else {
+		fmt.Printf("%s [y/N] ", question)
+	}
+
+	if ctx.Bool("yes") {
+		fmt.Printf("\n")
+		return defaultYes
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	if scanner.Text() == "" {
+		return defaultYes
+	}
+	return strings.ToLower(scanner.Text()) == "y"
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"sync"
 
-	"github.com/dustin/go-humanize"
 	datatransfer "github.com/filecoin-project/go-data-transfer"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/ipfs/go-cid"
@@ -49,17 +49,40 @@ func (status RetrievalTransferStatus) IsDone() bool {
 		status == RetrievalTransferStatusErrored
 }
 
+// Operational handle for controlling and getting information about a retrieval
+// transfer
 type RetrievalTransfer struct {
+	lk        sync.Mutex
 	client    *Client
 	status    RetrievalTransferStatus
 	provider  peer.ID
 	proposal  retrievalmarket.DealProposal
 	chanID    datatransfer.ChannelID
+	progress  uint64
+	size      uint64
 	doneChans []chan<- struct{}
 }
 
 func (transfer *RetrievalTransfer) State() RetrievalTransferStatus {
+	transfer.lk.Lock()
+	defer transfer.lk.Unlock()
 	return transfer.status
+}
+
+// TODO(@elijaharita): the result of this function is currently inaccurate - it
+// includes the total amount of bytes transferred by datatransfer (including
+// vouchers, etc. on top of the total size of the blocks transferred), and also
+// does not include the size of blocks already stored in the blockstore
+func (transfer *RetrievalTransfer) Progress() uint64 {
+	transfer.lk.Lock()
+	defer transfer.lk.Unlock()
+	return transfer.progress
+}
+
+func (transfer *RetrievalTransfer) Size() uint64 {
+	transfer.lk.Lock()
+	defer transfer.lk.Unlock()
+	return transfer.size
 }
 
 func (handle *MinerHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
@@ -111,6 +134,8 @@ func (handle *MinerHandle) StartRetrievalTransfer(
 		return nil, err
 	}
 
+	log.Infof("Using deal ID %d", dealID)
+
 	proposal := retrievalmarket.DealProposal{
 		PayloadCID: payloadCid,
 		ID:         dealID,
@@ -124,7 +149,14 @@ func (handle *MinerHandle) StartRetrievalTransfer(
 
 	// Open the data channel
 
-	dtchan, err := handle.client.dt.OpenPullDataChannel(
+	// NOTE: from this point to the end of the function, retrieval transfers
+	// mutex will be locked so that we aren't able to look up the channel before
+	// it gets registered
+	handle.client.retrievalTransfersLk.Lock()
+	defer handle.client.retrievalTransfersLk.Unlock()
+
+	log.Infof("Starting data channel...")
+	chanID, err := handle.client.dt.OpenPullDataChannel(
 		ctx,
 		peerID,
 		&proposal,
@@ -132,31 +164,38 @@ func (handle *MinerHandle) StartRetrievalTransfer(
 		selectorparse.CommonSelector_ExploreAllRecursively,
 	)
 	if err != nil {
+
 		return nil, err
 	}
 
-	return &RetrievalTransfer{
+	transfer := &RetrievalTransfer{
 		client:   handle.client,
 		status:   RetrievalTransferStatusInProgress,
 		proposal: proposal,
-		chanID:   dtchan,
 		provider: peerID,
-	}, nil
-}
-
-// WIP
-func (transfer *RetrievalTransfer) Cancel(
-	ctx context.Context,
-) error {
-	if err := transfer.client.dt.CloseDataTransferChannel(
-		ctx,
-		transfer.chanID,
-	); err != nil {
-		return err
+		chanID:   chanID,
+		progress: 0,
+		size:     ask.Size,
 	}
 
-	for _, ch := range transfer.doneChans {
-		ch <- struct{}{}
+	// Register with running transfers
+	handle.client.retrievalTransfers[chanID] = transfer
+
+	log.Infof("Retrieval is running")
+
+	return transfer, nil
+}
+
+func (transfer *RetrievalTransfer) Cancel(ctx context.Context) error {
+	transfer.lk.Lock()
+	defer transfer.lk.Unlock()
+
+	return transfer.cancel(ctx)
+}
+
+func (transfer *RetrievalTransfer) cancel(ctx context.Context) error {
+	if err := transfer.close(ctx); err != nil {
+		return err
 	}
 
 	transfer.status = RetrievalTransferStatusCancelled
@@ -167,17 +206,46 @@ func (transfer *RetrievalTransfer) Cancel(
 // Returns a channel that will close when the retrieval finishes (closes
 // immediately if the retrieval is already done)
 func (transfer *RetrievalTransfer) Done() <-chan struct{} {
+	transfer.lk.Lock()
+	defer transfer.lk.Unlock()
+
+	return transfer.done()
+}
+
+func (transfer *RetrievalTransfer) done() <-chan struct{} {
 	ch := make(chan struct{})
 
 	if transfer.status.IsDone() {
 		// If already done, signal immediately
-		ch <- struct{}{}
+		close(ch)
 	} else {
 		// Otherwise register it in the transfer info for later
 		transfer.doneChans = append(transfer.doneChans, ch)
 	}
 
 	return ch
+}
+
+func (transfer *RetrievalTransfer) close(ctx context.Context) error {
+	// Ensure the channel is closed
+	if err := transfer.client.dt.CloseDataTransferChannel(
+		ctx,
+		transfer.chanID,
+	); err != nil {
+		return err
+	}
+
+	// Send done signals
+	for _, ch := range transfer.doneChans {
+		close(ch)
+	}
+
+	// Remove from active transfers
+	transfer.client.retrievalTransfersLk.Lock()
+	delete(transfer.client.retrievalTransfers, transfer.chanID)
+	transfer.client.retrievalTransfersLk.Unlock()
+
+	return nil
 }
 
 // Reads the next retrieval deal ID from the datastore (or initializes it as 1
@@ -218,14 +286,43 @@ func (client *Client) handleDataTransferRetrievalEvent(
 	event datatransfer.Event,
 	channelState datatransfer.ChannelState,
 ) {
+	log.Debugf("Event code %d: %s", event.Code, datatransfer.Events[event.Code])
+
+	client.retrievalTransfersLk.Lock()
+	transfer, ok := client.retrievalTransfers[channelState.ChannelID()]
+	if !ok {
+		log.Errorf("Received transfer event for nonexistent channel: %s", channelState.ChannelID())
+	}
+	client.retrievalTransfersLk.Unlock()
+
+	close := func() {
+		transfer.lk.Lock()
+		defer transfer.lk.Unlock()
+
+		if err := transfer.close(ctx); err != nil {
+			log.Errorf("Failed to close transfer with deal ID: %d", transfer.proposal.ID)
+		}
+	}
+
 	switch event.Code {
 	case datatransfer.NewVoucher:
 		switch result := channelState.LastVoucherResult().(type) {
 		case *retrievalmarket.DealResponse:
 			client.handleRetrievalDealResponse(ctx, event, channelState, result)
 		}
-	case datatransfer.DataReceivedProgress:
-		log.Infof("Data received: %d (%s)", channelState.Received(), humanize.IBytes(channelState.Received()))
+	case datatransfer.DataReceived:
+		// TODO(@elijaharita): shouldn't use channelState.Received() to track this
+		// value, use an intermediate blockstore layer to measure how many bytes
+		// are getting actually added to the blockstore
+		transfer.lk.Lock()
+		transfer.progress = channelState.Received()
+		transfer.lk.Unlock()
+	case datatransfer.CleanupComplete:
+		log.Infof("Retrieval transfer completed: %s", event.Message)
+		transfer.lk.Lock()
+		transfer.status = RetrievalTransferStatusCompleted
+		transfer.lk.Unlock()
+		close()
 	}
 }
 
@@ -237,26 +334,37 @@ func (client *Client) handleRetrievalDealResponse(
 ) {
 	log := log.With("channelID", channelState.ChannelID())
 
+	close := func() {
+		client.retrievalTransfersLk.Lock()
+		defer client.retrievalTransfersLk.Unlock()
+
+		transfer, ok := client.retrievalTransfers[channelState.ChannelID()]
+		if !ok {
+			log.Errorf("Cannot close nonexistent channel: %s", channelState.ChannelID())
+		}
+
+		transfer.lk.Lock()
+		defer transfer.lk.Unlock()
+
+		if err := transfer.close(ctx); err != nil {
+			log.Errorf("Failed to close transfer with deal ID: %d", transfer.proposal.ID)
+		}
+	}
+
 	switch response.Status {
 	case retrievalmarket.DealStatusAccepted:
 		log.Info("Retrieval transfer accepted: %s", event.Message)
 	case retrievalmarket.DealStatusRejected:
 		log.Error("Retrieval transfer rejected: %s", event.Message)
-		client.dt.CloseDataTransferChannel(ctx, channelState.ChannelID())
+		close()
 	case retrievalmarket.DealStatusFundsNeededUnseal:
 		log.Error("UNIMPLEMENTED - Funds needed for unseal: %d", response.PaymentOwed)
-		client.dt.CloseDataTransferChannel(ctx, channelState.ChannelID())
+		close()
 	case retrievalmarket.DealStatusFundsNeeded:
 		log.Error("UNIMPLEMENTED - Funds needed: %d", response.PaymentOwed)
-		client.dt.CloseDataTransferChannel(ctx, channelState.ChannelID())
+		close()
 	case retrievalmarket.DealStatusFundsNeededLastPayment:
 		log.Error("UNIMPLEMENTED - Funds needed for last payment: %d", response.PaymentOwed)
-		client.dt.CloseDataTransferChannel(ctx, channelState.ChannelID())
-	case retrievalmarket.DealStatusErrored:
-		log.Error("Retrieval transfer errored: %s", event.Message)
-		client.dt.CloseDataTransferChannel(ctx, channelState.ChannelID())
-	case retrievalmarket.DealStatusCompleted:
-		log.Info("Retrieval transfer completed: %s", event.Message)
-		client.dt.CloseDataTransferChannel(ctx, channelState.ChannelID())
+		close()
 	}
 }

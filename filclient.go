@@ -3,6 +3,7 @@ package filclient
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/filecoin-project/go-address"
 	datatransfer "github.com/filecoin-project/go-data-transfer"
@@ -42,7 +43,8 @@ type Client struct {
 	ds            datastore.Datastore
 
 	// TODO(@elijaharita): this shouldn't be in the main Client struct
-	retrievalTransfers map[retrievalmarket.DealID]RetrievalTransfer
+	retrievalTransfers   map[datatransfer.ChannelID]*RetrievalTransfer
+	retrievalTransfersLk sync.Mutex
 }
 
 func New(
@@ -78,7 +80,7 @@ func New(
 		// dtUnsubscribe: assigned below
 		bs:                 bs,
 		ds:                 ds,
-		retrievalTransfers: make(map[retrievalmarket.DealID]RetrievalTransfer),
+		retrievalTransfers: make(map[datatransfer.ChannelID]*RetrievalTransfer),
 	}
 
 	client.dtUnsubscribe = dt.SubscribeToEvents(func(
