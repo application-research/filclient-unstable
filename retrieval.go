@@ -8,8 +8,12 @@ import (
 
 	datatransfer "github.com/filecoin-project/go-data-transfer"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
+	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	offline "github.com/ipfs/go-ipfs-exchange-offline"
+	format "github.com/ipfs/go-ipld-format"
+	"github.com/ipfs/go-merkledag"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -52,14 +56,22 @@ func (status RetrievalTransferStatus) IsDone() bool {
 // Operational handle for controlling and getting information about a retrieval
 // transfer
 type RetrievalTransfer struct {
-	lk        sync.Mutex
-	client    *Client
-	status    RetrievalTransferStatus
-	provider  peer.ID
-	proposal  retrievalmarket.DealProposal
-	chanID    datatransfer.ChannelID
-	progress  uint64
-	size      uint64
+	lk       sync.Mutex
+	client   *Client
+	status   RetrievalTransferStatus
+	provider peer.ID
+	proposal retrievalmarket.DealProposal
+	chanID   datatransfer.ChannelID
+
+	// Bytes that were already in the blockstore before the retrieval started
+	cachedProgress uint64
+
+	// Bytes received since the retrieval started
+	retrievalProgress uint64
+
+	// Total byte size of the data being retrieved
+	size uint64
+
 	doneChans []chan<- struct{}
 }
 
@@ -69,14 +81,11 @@ func (transfer *RetrievalTransfer) State() RetrievalTransferStatus {
 	return transfer.status
 }
 
-// TODO(@elijaharita): the result of this function is currently inaccurate - it
-// includes the total amount of bytes transferred by datatransfer (including
-// vouchers, etc. on top of the total size of the blocks transferred), and also
-// does not include the size of blocks already stored in the blockstore
+// NOTE: progress may not end up reaching 100% of the expected size
 func (transfer *RetrievalTransfer) Progress() uint64 {
 	transfer.lk.Lock()
 	defer transfer.lk.Unlock()
-	return transfer.progress
+	return transfer.cachedProgress + transfer.retrievalProgress
 }
 
 func (transfer *RetrievalTransfer) Size() uint64 {
@@ -147,11 +156,34 @@ func (handle *MinerHandle) StartRetrievalTransfer(
 		return nil, err
 	}
 
+	// Compute the cached progress by walking the tree
+
+	var cachedProgress uint64
+	visited := cid.NewSet()
+	dag := merkledag.NewDAGService(blockservice.New(handle.client.bs, offline.Exchange(handle.client.bs)))
+
+	getLinks := func(ctx context.Context, cid cid.Cid) ([]*format.Link, error) {
+		node, err := dag.Get(ctx, cid)
+		if err != nil {
+			return nil, err
+		}
+
+		blockSize, err := handle.client.bs.GetSize(ctx, cid)
+		if err != nil {
+			return nil, err
+		}
+
+		cachedProgress += uint64(blockSize)
+
+		return node.Links(), nil
+	}
+
+	merkledag.Walk(ctx, getLinks, payloadCid, visited.Visit)
+
 	// Open the data channel
 
 	// NOTE: from this point to the end of the function, retrieval transfers
-	// mutex will be locked so that we aren't able to look up the channel before
-	// it gets registered
+	// mutex will be locked to prevent channel lookups before it gets registered
 	handle.client.retrievalTransfersLk.Lock()
 	defer handle.client.retrievalTransfersLk.Unlock()
 
@@ -164,18 +196,18 @@ func (handle *MinerHandle) StartRetrievalTransfer(
 		selectorparse.CommonSelector_ExploreAllRecursively,
 	)
 	if err != nil {
-
 		return nil, err
 	}
 
 	transfer := &RetrievalTransfer{
-		client:   handle.client,
-		status:   RetrievalTransferStatusInProgress,
-		proposal: proposal,
-		provider: peerID,
-		chanID:   chanID,
-		progress: 0,
-		size:     ask.Size,
+		client:            handle.client,
+		status:            RetrievalTransferStatusInProgress,
+		proposal:          proposal,
+		provider:          peerID,
+		chanID:            chanID,
+		cachedProgress:    cachedProgress,
+		retrievalProgress: 0,
+		size:              ask.Size,
 	}
 
 	// Register with running transfers
@@ -305,20 +337,22 @@ func (client *Client) handleDataTransferRetrievalEvent(
 	}
 
 	switch event.Code {
-	case datatransfer.NewVoucher:
+	case datatransfer.NewVoucherResult:
+		log.Debugf("Voucher result: %s", channelState.LastVoucherResult().Type())
 		switch result := channelState.LastVoucherResult().(type) {
 		case *retrievalmarket.DealResponse:
 			client.handleRetrievalDealResponse(ctx, event, channelState, result)
 		}
 	case datatransfer.DataReceived:
-		// TODO(@elijaharita): shouldn't use channelState.Received() to track this
-		// value, use an intermediate blockstore layer to measure how many bytes
-		// are getting actually added to the blockstore
 		transfer.lk.Lock()
-		transfer.progress = channelState.Received()
+		transfer.retrievalProgress = channelState.Received()
 		transfer.lk.Unlock()
 	case datatransfer.CleanupComplete:
-		log.Infof("Retrieval transfer completed: %s", event.Message)
+		if event.Message != "" {
+			log.Infof("Retrieval transfer completed: %s", event.Message)
+		} else {
+			log.Infof("Retrieval transfer completed")
+		}
 		transfer.lk.Lock()
 		transfer.status = RetrievalTransferStatusCompleted
 		transfer.lk.Unlock()
