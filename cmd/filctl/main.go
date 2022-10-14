@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/application-research/filclient"
@@ -88,6 +90,17 @@ func main() {
 				},
 			},
 		},
+		{
+			Name:   "clear-blockstore",
+			Action: cmdClearBlockstore,
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:    "yes",
+					Aliases: []string{"y"},
+					Usage:   "Assume yes for default-yes prompts (or no default-no prompts)",
+				},
+			},
+		},
 	}
 	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Fatalf("Command failed: %v", err)
@@ -109,6 +122,8 @@ func cmdFindDeals(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse --max-size: %v", err)
 	}
+
+	fmt.Printf("Searching for deals...\n")
 
 	count := ctx.Uint("count")
 
@@ -147,55 +162,81 @@ func cmdFindDeals(ctx *cli.Context) error {
 		return err
 	}
 
+	dealID := firstUnusedDealID - 1 - abi.DealID(offset)
+	var lk sync.Mutex
+
+	scanCount := uint(0)
 	currCount := uint(0)
 	currProviderCounts := make(map[address.Address]uint)
 
-	for i := firstUnusedDealID - 1 - abi.DealID(offset); i > 0; i-- {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
+	var wg sync.WaitGroup
+	for threadNum := 0; threadNum < 8; threadNum++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				if ctx.Err() != nil {
+					return
+				}
 
-		if currCount == count {
-			break
-		}
+				if currCount == count {
+					break
+				}
 
-		proposal, ok, err := proposals.Get(abi.DealID(i))
-		if err != nil {
-			log.Errorf("Failed to load deal ID %d: %v", i, err)
-			continue
-		}
-		if !ok {
-			continue
-		}
+				fmt.Printf("Scanned %d deals\t\t\r", scanCount)
+				scanCount++
 
-		if currProviderCounts[proposal.Provider] == perProviderCount {
-			continue
-		}
+				lk.Lock()
+				copiedDealID := dealID
+				dealID--
+				lk.Unlock()
 
-		payloadCid, err := findPayloadCid(*proposal)
-		if err != nil {
-			log.Debugf("Could not extract payload CID from deal ID %d: %v", i, err)
-			continue
-		}
+				proposal, ok, err := proposals.Get(copiedDealID)
+				if err != nil {
+					// Only print the error if it wasn't a context error
+					if ctx.Err() == nil {
+						log.Errorf("Failed to load deal ID %d: %v", copiedDealID, err)
+					}
+					continue
+				}
+				if !ok {
+					continue
+				}
 
-		if payloadCid.Prefix().GetCodec() == cid.Raw {
-			continue
-		}
+				if currProviderCounts[proposal.Provider] == perProviderCount {
+					continue
+				}
 
-		if uint64(proposal.PieceSize) > maxSize {
-			continue
-		}
+				payloadCid, err := findPayloadCid(*proposal)
+				if err != nil {
+					log.Debugf("Could not extract payload CID from deal ID %d: %v", copiedDealID, err)
+					continue
+				}
 
-		fmt.Printf(
-			"(%s) %s %s\n",
-			humanize.IBytes(uint64(proposal.PieceSize)),
-			proposal.Provider,
-			payloadCid,
-		)
+				if payloadCid.Prefix().GetCodec() == cid.Raw {
+					continue
+				}
 
-		currCount++
-		currProviderCounts[proposal.Provider]++
+				if uint64(proposal.PieceSize) > maxSize {
+					continue
+				}
+
+				lk.Lock()
+
+				fmt.Printf(
+					"(%s) %s %s\n",
+					humanize.IBytes(uint64(proposal.PieceSize)),
+					proposal.Provider,
+					payloadCid,
+				)
+
+				currCount++
+				currProviderCounts[proposal.Provider]++
+				lk.Unlock()
+			}
+		}()
 	}
+	wg.Wait()
 
 	return nil
 }
@@ -295,6 +336,22 @@ func cmdRetrieve(ctx *cli.Context) error {
 	}
 
 	fmt.Fprintf(os.Stdout, "\n")
+
+	return nil
+}
+
+func cmdClearBlockstore(ctx *cli.Context) error {
+	blockstorePath := filepath.Join(dataDir(ctx), "blockstore")
+
+	if !prompt(ctx, fmt.Sprintf("Delete blockstore? (at path '%s')", blockstorePath), true) {
+		return nil
+	}
+
+	if err := os.RemoveAll(blockstorePath); err != nil {
+		return err
+	}
+
+	fmt.Printf("Deleted blockstore\n")
 
 	return nil
 }
