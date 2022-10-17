@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
 	lotusactors "github.com/filecoin-project/lotus/chain/actors"
 	lotustypes "github.com/filecoin-project/lotus/chain/types"
@@ -29,6 +30,8 @@ import (
 
 // -- Setup functions
 
+const TestSectorSize abi.SectorSize = 512 << 20
+
 // Create and set up an ensemble with linked filclient
 func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestMiner, *kit.Ensemble, *Client, func()) {
 
@@ -39,9 +42,9 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	logging.SetLogLevel("*", "ERROR")
 
 	client, miner, ensemble := kit.EnsembleMinimal(t,
-		kit.ThroughRPC(),        // so filclient can talk to it
-		kit.MockProofs(),        // we don't care about proper sealing/proofs
-		kit.SectorSize(512<<20), // 512MiB sectors
+		kit.ThroughRPC(),               // so filclient can talk to it
+		kit.MockProofs(),               // we don't care about proper sealing/proofs
+		kit.SectorSize(TestSectorSize), // 512MiB sectors
 	)
 	ensemble.InterconnectAll().BeginMining(50 * time.Millisecond)
 

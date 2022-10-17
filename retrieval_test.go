@@ -12,6 +12,11 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/itests/kit"
+	"github.com/ipfs/go-blockservice"
+	"github.com/ipfs/go-cid"
+	offline "github.com/ipfs/go-ipfs-exchange-offline"
+	format "github.com/ipfs/go-ipld-format"
+	"github.com/ipfs/go-merkledag"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -36,12 +41,50 @@ func TestQueryRetrievalAsk(t *testing.T) {
 
 		return nil
 	}
+
+	require.NoError(t, app.Run([]string{""}))
+}
+
+func TestRetrievalTransfer(t *testing.T) {
+	app := cli.NewApp()
+	app.Action = func(ctx *cli.Context) error {
+		client, miner, _, fc, closer := initEnsemble(t, ctx)
+		defer closer()
+
+		importRes := genDummyDeal(ctx.Context, t, client, miner)
+
+		minerAddr, err := miner.ActorAddress(ctx.Context)
+		require.NoError(t, err)
+
+		// Run the transfer
+		fmt.Printf("Transferring...\n")
+		transfer, err := fc.MinerByAddress(minerAddr).StartRetrievalTransfer(ctx.Context, importRes.Root)
+		require.NoError(t, err)
+		<-transfer.Done()
+		fmt.Printf("Finished transferring\n")
+
+		// Verify the blocks are stored in the blockstore
+		dagService := merkledag.NewDAGService(blockservice.New(fc.bs, offline.Exchange(fc.bs)))
+		cidSet := cid.NewSet()
+		fmt.Printf("Verifying blocks...")
+		require.NoError(t, merkledag.Walk(ctx.Context, func(ctx context.Context, c cid.Cid) ([]*format.Link, error) {
+			links, err := dagService.GetLinks(ctx, c)
+			require.NoErrorf(t, err, "CID missing: %s", c)
+			fmt.Printf("=> %s\n", c)
+
+			return links, nil
+		}, importRes.Root, cidSet.Visit))
+		fmt.Printf("Finished verifying blocks\n")
+
+		return nil
+	}
+
 	require.NoError(t, app.Run([]string{""}))
 }
 
 func genDummyDeal(ctx context.Context, t *testing.T, client *kit.TestFullNode, miner *kit.TestMiner) *api.ImportRes {
 	// Create dummy deal on miner
-	res, file := client.CreateImportFile(ctx, 1, 256<<20)
+	res, file := client.CreateImportFile(ctx, 1, int(TestSectorSize/2))
 	fmt.Printf("Created import file '%s'\n", file)
 	pieceInfo, err := client.ClientDealPieceCID(ctx, res.Root)
 	require.NoError(t, err)
