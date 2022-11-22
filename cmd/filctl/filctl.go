@@ -4,7 +4,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/application-research/filclient"
+	"github.com/application-research/filclient-unstable"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/lotus/api"
 	lcli "github.com/filecoin-project/lotus/cli"

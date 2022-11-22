@@ -1,4 +1,4 @@
-module github.com/application-research/filclient
+module github.com/application-research/filclient-unstable
 
 go 1.18
 

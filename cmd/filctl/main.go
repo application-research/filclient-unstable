@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/application-research/filclient"
+	"github.com/application-research/filclient-unstable"
 	"github.com/dustin/go-humanize"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
