@@ -1,5 +1,5 @@
 # Extern dependency tags or branches
-filecoin_ffi_version = 32afd6e1f1419b6b
+filecoin_ffi_version = 280c4f8b94fd46dc824a5c827dece73ec7fe3efd
 
 all: filecoin_ffi
 .PHONY: all

@@ -14,10 +14,7 @@ func TestMinerVersion(t *testing.T) {
 		_, miner, _, fc, closer := initEnsemble(t, ctx)
 		defer closer()
 
-		minerAddr, err := miner.ActorAddress(ctx.Context)
-		require.NoError(t, err)
-
-		version, err := fc.MinerByAddress(minerAddr).Version(ctx.Context)
+		version, err := fc.MinerByAddress(miner.ActorAddr).Version(ctx.Context)
 		require.NoError(t, err)
 		fmt.Printf("Found miner version: %s\n", version)
 
@@ -32,12 +29,9 @@ func TestMinerAddressToPeerID(t *testing.T) {
 		_, miner, _, fc, closer := initEnsemble(t, ctx)
 		defer closer()
 
-		minerAddr, err := miner.ActorAddress(ctx.Context)
+		minerPeerID, err := fc.MinerByAddress(miner.ActorAddr).PeerID(ctx.Context)
 		require.NoError(t, err)
-
-		minerPeerID, err := fc.MinerByAddress(minerAddr).PeerID(ctx.Context)
-		require.NoError(t, err)
-		fmt.Printf("Mapped miner address %s to peer ID %s\n", minerAddr, minerPeerID)
+		fmt.Printf("Mapped miner address %s to peer ID %s\n", miner.ActorAddr, minerPeerID)
 
 		return nil
 	}

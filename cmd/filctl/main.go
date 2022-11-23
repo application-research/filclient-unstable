@@ -16,15 +16,15 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/builtin"
 	lblockstore "github.com/filecoin-project/lotus/blockstore"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/specs-actors/v8/actors/builtin"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/jedib0t/go-pretty/v6/table"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 )
@@ -253,7 +253,7 @@ func cmdRetrieve(ctx *cli.Context) error {
 	var handle *filclient.MinerHandle
 	addr, err := address.NewFromString(ctx.String("provider"))
 	if err != nil {
-		peerID, err2 := peer.IDFromString(ctx.String("provider"))
+		peerID, err2 := peer.Decode(ctx.String("provider"))
 		if err2 != nil {
 			return fmt.Errorf("could not parse provider string as addr (%v) or peer ID (%v)", err, err2)
 		} else {

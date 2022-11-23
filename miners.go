@@ -9,9 +9,9 @@ import (
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -165,6 +165,7 @@ func (handle *MinerHandle) Connect(ctx context.Context) (peer.ID, error) {
 
 		multiaddrs = append(multiaddrs, multiaddr)
 	}
+	fmt.Printf("Connecting to %v (%s)\n", multiaddrs, handle.peerID)
 
 	// FIXME - lotus-client-proper falls back on the DHT when it has a peerid but no multiaddr
 	// filc should do the same

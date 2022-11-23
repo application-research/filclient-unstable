@@ -29,10 +29,7 @@ func TestQueryRetrievalAsk(t *testing.T) {
 
 		importRes := genDummyDeal(ctx.Context, t, client, miner)
 
-		minerAddr, err := miner.ActorAddress(ctx.Context)
-		require.NoError(t, err)
-
-		ask, err := fc.MinerByAddress(minerAddr).QueryRetrievalAsk(ctx.Context, importRes.Root)
+		ask, err := fc.MinerByAddress(miner.ActorAddr).QueryRetrievalAsk(ctx.Context, importRes.Root)
 		require.NoError(t, err)
 
 		require.Equal(t, ask.Status, retrievalmarket.QueryResponseAvailable, "Retrieval ask: %#v", ask)
@@ -53,12 +50,9 @@ func TestRetrievalTransfer(t *testing.T) {
 
 		importRes := genDummyDeal(ctx.Context, t, client, miner)
 
-		minerAddr, err := miner.ActorAddress(ctx.Context)
-		require.NoError(t, err)
-
 		// Run the transfer
 		fmt.Printf("Transferring...\n")
-		transfer, err := fc.MinerByAddress(minerAddr).StartRetrievalTransfer(ctx.Context, importRes.Root)
+		transfer, err := fc.MinerByAddress(miner.ActorAddr).StartRetrievalTransfer(ctx.Context, importRes.Root)
 		require.NoError(t, err)
 		<-transfer.Done()
 		fmt.Printf("Finished transferring\n")

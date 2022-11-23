@@ -15,7 +15,7 @@ import (
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // retrieval.go - all retrieval-related functions
@@ -99,7 +99,7 @@ func (handle *MinerHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid
 
 	req := retrievalmarket.Query{PayloadCID: payloadCid}
 	var resp retrievalmarket.QueryResponse
-	if err := handle.runSingleRPC(ctx, &req, &resp, protocol); err != nil {
+	if err := handle.runSingleRPC(ctx, &req, &resp, retrievalmarket.QueryProtocolID); err != nil {
 		return retrievalmarket.QueryResponse{}, err
 	}
 

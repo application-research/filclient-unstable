@@ -7,17 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/api"
 	lotusactors "github.com/filecoin-project/lotus/chain/actors"
 	lotustypes "github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
-	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/itests/kit"
 	lotusrepo "github.com/filecoin-project/lotus/node/repo"
-	filbuiltin "github.com/filecoin-project/specs-actors/v6/actors/builtin"
-	filminer "github.com/filecoin-project/specs-actors/v6/actors/builtin/miner"
+	filbuiltin "github.com/filecoin-project/specs-actors/actors/builtin"
+	filminer "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/ipfs/go-datastore"
 	flatfs "github.com/ipfs/go-ds-flatfs"
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -40,13 +37,14 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	kit.QuietMiningLogs()
 
 	logging.SetLogLevel("*", "ERROR")
+	logging.SetLogLevel("filclient", "DEBUG")
 
 	client, miner, ensemble := kit.EnsembleMinimal(t,
 		kit.ThroughRPC(),               // so filclient can talk to it
 		kit.MockProofs(),               // we don't care about proper sealing/proofs
 		kit.SectorSize(TestSectorSize), // 512MiB sectors
+		kit.DisableLibp2p(),
 	)
-	ensemble.InterconnectAll().BeginMining(50 * time.Millisecond)
 
 	// set the *optional* on-chain multiaddr
 	// the mind boggles: there is no API call for that - got to assemble your own msg
@@ -74,8 +72,6 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	fmt.Printf("Test client fullnode running on %s\n", client.ListenAddr)
 	os.Setenv("FULLNODE_API_INFO", client.ListenAddr.String())
 
-	client.WaitTillChain(ctx.Context, kit.BlockMinedBy(miner.ActorAddr))
-
 	// FilClient initialization
 	fmt.Printf("Initializing filclient...\n")
 
@@ -92,17 +88,14 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	require.NoError(t, err)
 
 	h, err := ensemble.Mocknet().GenPeer()
-	if err != nil {
-		t.Fatalf("Could not gen p2p peer: %v", err)
-	}
-	ensemble.Mocknet().LinkAll()
-	api, closer := initAPI(t, ctx)
+	require.NoError(t, err)
+	require.NoError(t, ensemble.Mocknet().LinkAll())
 	bs := initBlockstore(t)
 	ds := initDatastore(t)
 	fc, err := New(
 		ctx.Context,
 		h,
-		api,
+		client.FullNode,
 		client.DefaultKey.Address,
 		bs,
 		ds,
@@ -111,21 +104,17 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 		t.Fatalf("Could not initialize FilClient: %v", err)
 	}
 
+	ensemble.InterconnectAll().BeginMiningMustPost(50 * time.Millisecond)
+	client.WaitTillChain(ctx.Context, kit.BlockMinedBy(miner.ActorAddr))
+
 	// Wait for actor address to appear on chain
 	time.Sleep(time.Millisecond * 500)
 
 	fmt.Printf("Ready\n")
+	fmt.Printf("Miner peer ID: %s\n", miner.Libp2p.PeerID)
+	time.Sleep(time.Millisecond * 500)
 
-	return client, miner, ensemble, fc, closer
-}
-
-func initAPI(t *testing.T, ctx *cli.Context) (api.Gateway, jsonrpc.ClientCloser) {
-	api, closer, err := lcli.GetGatewayAPI(ctx)
-	if err != nil {
-		t.Fatalf("Could not initialize Lotus API gateway: %v", err)
-	}
-
-	return api, closer
+	return client, miner, ensemble, fc, func() {}
 }
 
 func initBlockstore(t *testing.T) blockstore.Blockstore {
