@@ -60,14 +60,13 @@ func main() {
 					Usage:   "The provider address or peer ID",
 				},
 				&cli.StringFlag{
-					Name:     "output",
-					Aliases:  []string{"o", "output"},
-					Usage:    "The output file location",
-					Required: false,
+					Name:    "output",
+					Aliases: []string{"o", "out"},
+					Usage:   "The output file location",
 				},
 				&cli.BoolFlag{
 					Name:    "car",
-					Aliases: []string{"c", "car"},
+					Aliases: []string{"c"},
 					Usage:   "If set, will export result as CAR, otherwise will export as UnixFS",
 				},
 			},

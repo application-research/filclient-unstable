@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
@@ -14,6 +15,8 @@ import (
 	"github.com/ipld/go-car"
 )
 
+// Exports the provided CID to a file
+// The content must already exist in the blockstore before calling this function
 func (client *Client) ExportToFile(ctx context.Context, c cid.Cid, path string, exportAsCAR bool) error {
 	// Save output file
 	dservOffline := merkledag.NewDAGService(blockservice.New(client.bs, offline.Exchange(client.bs)))
@@ -24,7 +27,14 @@ func (client *Client) ExportToFile(ctx context.Context, c cid.Cid, path string, 
 
 	if exportAsCAR {
 		// Write file as car file
-		file, err := os.Create(path + ".car")
+
+		carPath := path
+		// Add .car extension, if not already specified
+		if !strings.HasSuffix(path, ".car") {
+			carPath += ".car"
+		}
+
+		file, err := os.Create(carPath)
 		if err != nil {
 			return err
 		}
