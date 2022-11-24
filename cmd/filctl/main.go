@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -57,6 +58,17 @@ func main() {
 					Name:    "provider",
 					Aliases: []string{"p", "miner", "m"},
 					Usage:   "The provider address or peer ID",
+				},
+				&cli.StringFlag{
+					Name:     "output",
+					Aliases:  []string{"o", "output"},
+					Usage:    "The output file location",
+					Required: false,
+				},
+				&cli.BoolFlag{
+					Name:    "car",
+					Aliases: []string{"c", "car"},
+					Usage:   "If set, will export result as CAR, otherwise will export as UnixFS",
 				},
 			},
 		},
@@ -269,6 +281,12 @@ func cmdRetrieve(ctx *cli.Context) error {
 		return fmt.Errorf("could not parse payload CID: %v", err)
 	}
 
+	path := ctx.String("output")
+
+	if path != "" && !fs.ValidPath(path) {
+		return fmt.Errorf("invalid output location '%s'", path)
+	}
+
 	// Do retrieval query
 	res, err := handle.QueryRetrievalAsk(ctx.Context, payloadCid)
 	if err != nil {
@@ -316,12 +334,15 @@ func cmdRetrieve(ctx *cli.Context) error {
 		return err
 	}
 
+	success := false
+
 	for range time.Tick(time.Millisecond * 100) {
 		if ctx.Err() != nil {
 			break
 		}
 
 		if transfer.State().IsDone() {
+			success = true
 			break
 		}
 
@@ -336,6 +357,10 @@ func cmdRetrieve(ctx *cli.Context) error {
 	}
 
 	fmt.Fprintf(os.Stdout, "\n")
+
+	if path != "" && success {
+		filctl.client.ExportToFile(ctx.Context, payloadCid, path, ctx.Bool("car"))
+	}
 
 	return nil
 }
