@@ -40,7 +40,7 @@ func (client *Client) ExportToFile(ctx context.Context, c cid.Cid, path string, 
 		}
 		car.WriteCar(ctx, dservOffline, []cid.Cid{c}, file)
 
-		fmt.Println("Saved .car output to", path+".car")
+		fmt.Println("Saved .car output to", path)
 	} else {
 		// Otherwise write file as UnixFS File
 		ufsFile, err := unixfile.NewUnixfsFile(ctx, dservOffline, dnode)

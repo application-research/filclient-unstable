@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -282,8 +281,20 @@ func cmdRetrieve(ctx *cli.Context) error {
 
 	path := ctx.String("output")
 
-	if path != "" && !fs.ValidPath(path) {
-		return fmt.Errorf("invalid output location '%s'", path)
+	if path != "" {
+		if FileExists(path) {
+			// Allow user to confirm the overwrite
+			if !prompt(ctx, fmt.Sprintf("Output file %s already exists, continue and overwrite?", path), true) {
+				return nil
+			}
+		} else {
+			// Verify the path can be written to by creating a file there
+			_, err := os.Create(path)
+			if err != nil {
+				return fmt.Errorf("cannot create output path '%s'", path)
+			}
+			os.Remove(path)
+		}
 	}
 
 	// Do retrieval query
