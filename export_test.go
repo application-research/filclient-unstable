@@ -11,7 +11,7 @@ import (
 
 func TestExportFile(t *testing.T) {
 	outputFilename := "TestExportFile.test.output"
-	// Remove any pre-existing file and ensure it is removed when the test finishes
+	// Remove any pre-existing file before executing, and ensure it is removed when the test finishes
 	os.Remove(outputFilename)
 	defer func() {
 		os.Remove(outputFilename)
@@ -34,8 +34,10 @@ func TestExportFile(t *testing.T) {
 
 		// Export to file and check that it exists
 		fc.ExportToFile(ctx.Context, importRes.Root, outputFilename, false)
-		_, err = os.Stat(outputFilename)
+		outFile, err := os.Stat(outputFilename)
+
 		require.NoError(t, err)
+		require.Greater(t, outFile.Size(), int64(0))
 
 		return nil
 	}
