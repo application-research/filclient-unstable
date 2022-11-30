@@ -3,6 +3,7 @@ package filclient
 import (
 	"fmt"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestExportFile(t *testing.T) {
-	outputFilename := t.TempDir() + "/testfile"
+	outputFilename := path.Join(t.TempDir() + "export-test")
 
 	app := cli.NewApp()
 	app.Action = func(ctx *cli.Context) error {
