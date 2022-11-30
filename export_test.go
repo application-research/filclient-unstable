@@ -10,12 +10,7 @@ import (
 )
 
 func TestExportFile(t *testing.T) {
-	outputFilename := "TestExportFile.test.output"
-	// Remove any pre-existing file before executing, and ensure it is removed when the test finishes
-	os.Remove(outputFilename)
-	defer func() {
-		os.Remove(outputFilename)
-	}()
+	outputFilename := t.TempDir() + "/testfile"
 
 	app := cli.NewApp()
 	app.Action = func(ctx *cli.Context) error {
