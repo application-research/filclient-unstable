@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
@@ -28,13 +27,7 @@ func (client *Client) ExportToFile(ctx context.Context, c cid.Cid, path string, 
 	if exportAsCAR {
 		// Write file as car file
 
-		carPath := path
-		// Add .car extension, if not already specified
-		if !strings.HasSuffix(path, ".car") {
-			carPath += ".car"
-		}
-
-		file, err := os.Create(carPath)
+		file, err := os.Create(path)
 		if err != nil {
 			return err
 		}

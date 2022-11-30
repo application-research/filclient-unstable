@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -279,22 +280,35 @@ func cmdRetrieve(ctx *cli.Context) error {
 		return fmt.Errorf("could not parse payload CID: %v", err)
 	}
 
-	path := ctx.String("output")
+	outPath := ctx.String("output")
+	exportAsCAR := ctx.Bool("car")
 
-	if path != "" {
-		if FileExists(path) {
-			// Allow user to confirm the overwrite
-			if !prompt(ctx, fmt.Sprintf("Output file %s already exists, continue and overwrite?", path), true) {
-				return nil
-			}
-		} else {
-			// Verify the path can be written to by creating a file there
-			_, err := os.Create(path)
-			if err != nil {
-				return fmt.Errorf("cannot create output path '%s'", path)
-			}
-			os.Remove(path)
+	// If no output path specified, default to current directory / cid
+	if outPath == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("cannot determine current working directory '%s'", err)
 		}
+		outPath = path.Join(wd, payloadCid.String())
+	}
+
+	// Add .car extension, if not already specified
+	if exportAsCAR && !strings.HasSuffix(outPath, ".car") {
+		outPath += ".car"
+	}
+
+	if FileExists(outPath) {
+		// Allow user to confirm the overwrite
+		if !prompt(ctx, fmt.Sprintf("Output file %s already exists, continue and overwrite?", outPath), true) {
+			return nil
+		}
+	} else {
+		// Verify the path can be written to by creating a file there
+		_, err := os.Create(outPath)
+		if err != nil {
+			return fmt.Errorf("cannot create output path '%s'", outPath)
+		}
+		os.Remove(outPath)
 	}
 
 	// Do retrieval query
@@ -368,8 +382,8 @@ func cmdRetrieve(ctx *cli.Context) error {
 
 	fmt.Fprintf(os.Stdout, "\n")
 
-	if path != "" && success {
-		filctl.client.ExportToFile(ctx.Context, payloadCid, path, ctx.Bool("car"))
+	if success {
+		filctl.client.ExportToFile(ctx.Context, payloadCid, outPath, exportAsCAR)
 	}
 
 	return nil
