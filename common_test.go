@@ -1,6 +1,7 @@
 package filclient
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,7 +23,6 @@ import (
 	logging "github.com/ipfs/go-log"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli/v2"
 )
 
 // -- Setup functions
@@ -30,7 +30,7 @@ import (
 const TestSectorSize abi.SectorSize = 512 << 20
 
 // Create and set up an ensemble with linked filclient
-func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestMiner, *kit.Ensemble, *Client, func()) {
+func initEnsemble(t *testing.T, ctx context.Context) (*kit.TestFullNode, *kit.TestMiner, *kit.Ensemble, *Client, func()) {
 
 	fmt.Printf("Initializing test network...\n")
 
@@ -49,7 +49,7 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	// set the *optional* on-chain multiaddr
 	// the mind boggles: there is no API call for that - got to assemble your own msg
 	{
-		minfo, err := miner.FullNode.StateMinerInfo(ctx.Context, miner.ActorAddr, lotustypes.EmptyTSK)
+		minfo, err := miner.FullNode.StateMinerInfo(ctx, miner.ActorAddr, lotustypes.EmptyTSK)
 		require.NoError(t, err)
 
 		maddrNop2p, _ := multiaddr.SplitFunc(miner.ListenAddr, func(c multiaddr.Component) bool {
@@ -59,7 +59,7 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 		params, aerr := lotusactors.SerializeParams(&filminer.ChangeMultiaddrsParams{NewMultiaddrs: [][]byte{maddrNop2p.Bytes()}})
 		require.NoError(t, aerr)
 
-		_, err = miner.FullNode.MpoolPushMessage(ctx.Context, &lotustypes.Message{
+		_, err = miner.FullNode.MpoolPushMessage(ctx, &lotustypes.Message{
 			To:     miner.ActorAddr,
 			From:   minfo.Worker,
 			Value:  lotustypes.NewInt(0),
@@ -76,7 +76,7 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	fmt.Printf("Initializing filclient...\n")
 
 	// give filc the pre-funded wallet from the client
-	ki, err := client.WalletExport(ctx.Context, client.DefaultKey.Address)
+	ki, err := client.WalletExport(ctx, client.DefaultKey.Address)
 	require.NoError(t, err)
 	lr, err := lotusrepo.NewMemory(nil).Lock(lotusrepo.Wallet)
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	require.NoError(t, err)
 	wallet, err := wallet.NewWallet(ks)
 	require.NoError(t, err)
-	_, err = wallet.WalletImport(ctx.Context, ki)
+	_, err = wallet.WalletImport(ctx, ki)
 	require.NoError(t, err)
 
 	h, err := ensemble.Mocknet().GenPeer()
@@ -93,7 +93,7 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	bs := initBlockstore(t)
 	ds := initDatastore(t)
 	fc, err := New(
-		ctx.Context,
+		ctx,
 		h,
 		client.FullNode,
 		client.DefaultKey.Address,
@@ -105,7 +105,7 @@ func initEnsemble(t *testing.T, ctx *cli.Context) (*kit.TestFullNode, *kit.TestM
 	}
 
 	ensemble.InterconnectAll().BeginMiningMustPost(50 * time.Millisecond)
-	client.WaitTillChain(ctx.Context, kit.BlockMinedBy(miner.ActorAddr))
+	client.WaitTillChain(ctx, kit.BlockMinedBy(miner.ActorAddr))
 
 	// Wait for actor address to appear on chain
 	time.Sleep(time.Millisecond * 500)
