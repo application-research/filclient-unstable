@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -57,6 +58,16 @@ func main() {
 					Name:    "provider",
 					Aliases: []string{"p", "miner", "m"},
 					Usage:   "The provider address or peer ID",
+				},
+				&cli.StringFlag{
+					Name:    "output",
+					Aliases: []string{"o", "out"},
+					Usage:   "The output file location",
+				},
+				&cli.BoolFlag{
+					Name:    "car",
+					Aliases: []string{"c"},
+					Usage:   "If set, will export result as CAR, otherwise will export as UnixFS",
 				},
 			},
 		},
@@ -269,6 +280,37 @@ func cmdRetrieve(ctx *cli.Context) error {
 		return fmt.Errorf("could not parse payload CID: %v", err)
 	}
 
+	outPath := ctx.String("output")
+	exportAsCAR := ctx.Bool("car")
+
+	// If no output path specified, default to current directory / cid
+	if outPath == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("cannot determine current working directory '%s'", err)
+		}
+		outPath = path.Join(wd, payloadCid.String())
+	}
+
+	// Add .car extension, if not already specified
+	if exportAsCAR && !strings.HasSuffix(outPath, ".car") {
+		outPath += ".car"
+	}
+
+	if FileExists(outPath) {
+		// Allow user to confirm the overwrite
+		if !prompt(ctx, fmt.Sprintf("Output file %s already exists, continue and overwrite?", outPath), true) {
+			return nil
+		}
+	} else {
+		// Verify the path can be written to by creating a file there
+		_, err := os.Create(outPath)
+		if err != nil {
+			return fmt.Errorf("cannot create output path '%s'", outPath)
+		}
+		os.Remove(outPath)
+	}
+
 	// Do retrieval query
 	res, err := handle.QueryRetrievalAsk(ctx.Context, payloadCid)
 	if err != nil {
@@ -316,12 +358,15 @@ func cmdRetrieve(ctx *cli.Context) error {
 		return err
 	}
 
+	success := false
+
 	for range time.Tick(time.Millisecond * 100) {
 		if ctx.Err() != nil {
 			break
 		}
 
 		if transfer.State().IsDone() {
+			success = true
 			break
 		}
 
@@ -336,6 +381,10 @@ func cmdRetrieve(ctx *cli.Context) error {
 	}
 
 	fmt.Fprintf(os.Stdout, "\n")
+
+	if success {
+		filctl.client.ExportToFile(ctx.Context, payloadCid, outPath, exportAsCAR)
+	}
 
 	return nil
 }
