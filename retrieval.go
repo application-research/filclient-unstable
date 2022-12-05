@@ -94,7 +94,7 @@ func (transfer *RetrievalTransfer) Size() uint64 {
 	return transfer.size
 }
 
-func (handle *MinerHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
+func (handle *StorageProviderHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
 	const protocol = "/fil/retrieval/qry/1.0.0"
 
 	req := retrievalmarket.Query{PayloadCID: payloadCid}
@@ -107,7 +107,7 @@ func (handle *MinerHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid
 }
 
 // Start running a retrieval
-func (handle *MinerHandle) StartRetrievalTransfer(
+func (handle *StorageProviderHandle) StartRetrievalTransfer(
 	ctx context.Context,
 	payloadCid cid.Cid,
 	options ...RetrievalOption,
