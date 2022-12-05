@@ -18,62 +18,51 @@ import (
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli/v2"
 )
 
 func TestQueryRetrievalAsk(t *testing.T) {
-	app := cli.NewApp()
-	app.Action = func(ctx *cli.Context) error {
-		client, miner, _, fc, closer := initEnsemble(t, ctx)
-		defer closer()
+	ctx := context.TODO()
+	client, miner, _, fc, closer := initEnsemble(t, ctx)
+	defer closer()
 
-		importRes := genDummyDeal(ctx.Context, t, client, miner)
+	importRes := genDummyDeal(ctx, t, client, miner)
 
-		ask, err := fc.MinerByAddress(miner.ActorAddr).QueryRetrievalAsk(ctx.Context, importRes.Root)
-		require.NoError(t, err)
+	ask, err := fc.MinerByAddress(miner.ActorAddr).QueryRetrievalAsk(ctx, importRes.Root)
+	require.NoError(t, err)
 
-		require.Equal(t, ask.Status, retrievalmarket.QueryResponseAvailable, "Retrieval ask: %#v", ask)
+	require.Equal(t, ask.Status, retrievalmarket.QueryResponseAvailable, "Retrieval ask: %#v", ask)
 
-		fmt.Printf("Retrieval ask: %#v\n", ask)
+	fmt.Printf("Retrieval ask: %#v\n", ask)
 
-		return nil
-	}
-
-	require.NoError(t, app.Run([]string{""}))
 }
 
 func TestRetrievalTransfer(t *testing.T) {
-	app := cli.NewApp()
-	app.Action = func(ctx *cli.Context) error {
-		client, miner, _, fc, closer := initEnsemble(t, ctx)
-		defer closer()
+	ctx := context.TODO()
+	client, miner, _, fc, closer := initEnsemble(t, ctx)
+	defer closer()
 
-		importRes := genDummyDeal(ctx.Context, t, client, miner)
+	importRes := genDummyDeal(ctx, t, client, miner)
 
-		// Run the transfer
-		fmt.Printf("Transferring...\n")
-		transfer, err := fc.MinerByAddress(miner.ActorAddr).StartRetrievalTransfer(ctx.Context, importRes.Root)
-		require.NoError(t, err)
-		<-transfer.Done()
-		fmt.Printf("Finished transferring\n")
+	// Run the transfer
+	fmt.Printf("Transferring...\n")
+	transfer, err := fc.MinerByAddress(miner.ActorAddr).StartRetrievalTransfer(ctx, importRes.Root)
+	require.NoError(t, err)
+	<-transfer.Done()
+	fmt.Printf("Finished transferring\n")
 
-		// Verify the blocks are stored in the blockstore
-		dagService := merkledag.NewDAGService(blockservice.New(fc.bs, offline.Exchange(fc.bs)))
-		cidSet := cid.NewSet()
-		fmt.Printf("Verifying blocks...")
-		require.NoError(t, merkledag.Walk(ctx.Context, func(ctx context.Context, c cid.Cid) ([]*format.Link, error) {
-			links, err := dagService.GetLinks(ctx, c)
-			require.NoErrorf(t, err, "CID missing: %s", c)
-			fmt.Printf("=> %s\n", c)
+	// Verify the blocks are stored in the blockstore
+	dagService := merkledag.NewDAGService(blockservice.New(fc.bs, offline.Exchange(fc.bs)))
+	cidSet := cid.NewSet()
+	fmt.Printf("Verifying blocks...")
+	require.NoError(t, merkledag.Walk(ctx, func(ctx context.Context, c cid.Cid) ([]*format.Link, error) {
+		links, err := dagService.GetLinks(ctx, c)
+		require.NoErrorf(t, err, "CID missing: %s", c)
+		fmt.Printf("=> %s\n", c)
 
-			return links, nil
-		}, importRes.Root, cidSet.Visit))
-		fmt.Printf("Finished verifying blocks\n")
+		return links, nil
+	}, importRes.Root, cidSet.Visit))
+	fmt.Printf("Finished verifying blocks\n")
 
-		return nil
-	}
-
-	require.NoError(t, app.Run([]string{""}))
 }
 
 func genDummyDeal(ctx context.Context, t *testing.T, client *kit.TestFullNode, miner *kit.TestMiner) *api.ImportRes {
