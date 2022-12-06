@@ -24,9 +24,9 @@ var (
 	ErrCBORReadFailed        = errors.New("CBOR read failed")
 )
 
-// A miner handle contains all the functions used to interact with the miner,
+// A storage provider handle contains all the functions used to interact with the storage provider,
 // and facilitates mapping between addresses and peer IDs
-type MinerHandle struct {
+type StorageProviderHandle struct {
 	// WARNING: may be uninitialized - use .Address()
 	addr address.Address
 	// WARNING: may be uninitialized - use .PeerID()
@@ -34,15 +34,15 @@ type MinerHandle struct {
 	client *Client
 }
 
-func (client *Client) MinerByAddress(addr address.Address) *MinerHandle {
-	return &MinerHandle{
+func (client *Client) StorageProviderByAddress(addr address.Address) *StorageProviderHandle {
+	return &StorageProviderHandle{
 		addr:   addr,
 		client: client,
 	}
 }
 
-func (client *Client) MinerByPeerID(peerID peer.ID) *MinerHandle {
-	return &MinerHandle{
+func (client *Client) StorageProviderByPeerID(peerID peer.ID) *StorageProviderHandle {
+	return &StorageProviderHandle{
 		peerID: peerID,
 		client: client,
 	}
@@ -52,7 +52,7 @@ func (client *Client) MinerByPeerID(peerID peer.ID) *MinerHandle {
 //
 // In the future, this function may be able to derive the address from the peer
 // ID
-func (handle *MinerHandle) Address(ctx context.Context) (address.Address, error) {
+func (handle *StorageProviderHandle) Address(ctx context.Context) (address.Address, error) {
 	if handle.addr == address.Undef {
 		return address.Undef, fmt.Errorf("peer ID to address mapping is not yet implemented")
 	}
@@ -62,7 +62,7 @@ func (handle *MinerHandle) Address(ctx context.Context) (address.Address, error)
 
 // Returns the peer ID of the provider, looking it up on chain using the address
 // if not already stored
-func (handle *MinerHandle) PeerID(ctx context.Context) (peer.ID, error) {
+func (handle *StorageProviderHandle) PeerID(ctx context.Context) (peer.ID, error) {
 	info, err := handle.client.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
@@ -78,7 +78,7 @@ func (handle *MinerHandle) PeerID(ctx context.Context) (peer.ID, error) {
 }
 
 // Looks up the version string of the miner
-func (handle *MinerHandle) Version(ctx context.Context) (string, error) {
+func (handle *StorageProviderHandle) Version(ctx context.Context) (string, error) {
 	peer, err := handle.Connect(ctx)
 	if err != nil {
 		return "", err
@@ -92,8 +92,8 @@ func (handle *MinerHandle) Version(ctx context.Context) (string, error) {
 	return version.(string), nil
 }
 
-// Opens a P2P stream to the miner
-func (handle *MinerHandle) stream(ctx context.Context, protocols ...protocol.ID) (network.Stream, error) {
+// Opens a P2P stream to the storage provider
+func (handle *StorageProviderHandle) stream(ctx context.Context, protocols ...protocol.ID) (network.Stream, error) {
 	peer, err := handle.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func (handle *MinerHandle) stream(ctx context.Context, protocols ...protocol.ID)
 // ideal for multiple requests
 //
 // TODO(@elijaharita): generics
-func (handle *MinerHandle) runSingleRPC(ctx context.Context, req interface{}, resp interface{}, protocols ...protocol.ID) error {
+func (handle *StorageProviderHandle) runSingleRPC(ctx context.Context, req interface{}, resp interface{}, protocols ...protocol.ID) error {
 	stream, err := handle.stream(ctx, protocols...)
 	if err != nil {
 		return err
@@ -135,11 +135,11 @@ func (handle *MinerHandle) runSingleRPC(ctx context.Context, req interface{}, re
 	return nil
 }
 
-// Makes sure that the miner is connected
+// Makes sure that the storage provider is connected
 //
 // BEHAVIOR CHANGE - no longer errors on invalid multiaddr if at least one valid
 // multiaddr exists
-func (handle *MinerHandle) Connect(ctx context.Context) (peer.ID, error) {
+func (handle *StorageProviderHandle) Connect(ctx context.Context) (peer.ID, error) {
 	info, err := handle.client.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)

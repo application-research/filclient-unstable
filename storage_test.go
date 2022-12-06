@@ -13,7 +13,7 @@ func TestQueryStorageAsk(t *testing.T) {
 	_, miner, _, fc, closer := initEnsemble(t, ctx)
 	defer closer()
 
-	ask, _, err := fc.MinerByAddress(miner.ActorAddr).QueryStorageAskUnchecked(ctx)
+	ask, _, err := fc.StorageProviderByAddress(miner.ActorAddr).QueryStorageAskUnchecked(ctx)
 	require.NoError(t, err)
 
 	fmt.Printf("Storage ask: %#v\n", ask)

@@ -57,7 +57,7 @@ func main() {
 				&cli.StringFlag{
 					Name:    "provider",
 					Aliases: []string{"p", "miner", "m"},
-					Usage:   "The provider address or peer ID",
+					Usage:   "The storage provider address or peer ID",
 				},
 				&cli.StringFlag{
 					Name:    "output",
@@ -261,17 +261,17 @@ func cmdRetrieve(ctx *cli.Context) error {
 	queryOnly := ctx.Bool("query")
 
 	// Parse the provider handle
-	var handle *filclient.MinerHandle
+	var handle *filclient.StorageProviderHandle
 	addr, err := address.NewFromString(ctx.String("provider"))
 	if err != nil {
 		peerID, err2 := peer.Decode(ctx.String("provider"))
 		if err2 != nil {
 			return fmt.Errorf("could not parse provider string as addr (%v) or peer ID (%v)", err, err2)
 		} else {
-			handle = filctl.client.MinerByPeerID(peerID)
+			handle = filctl.client.StorageProviderByPeerID(peerID)
 		}
 	} else {
-		handle = filctl.client.MinerByAddress(addr)
+		handle = filctl.client.StorageProviderByAddress(addr)
 	}
 
 	// Parse the payload CID

@@ -22,7 +22,7 @@ func TestExportFile(t *testing.T) {
 
 	// Transfer dummy deal into the client
 	fmt.Printf("Transferring...\n")
-	transfer, err := fc.MinerByAddress(miner.ActorAddr).StartRetrievalTransfer(ctx, importRes.Root)
+	transfer, err := fc.StorageProviderByAddress(miner.ActorAddr).StartRetrievalTransfer(ctx, importRes.Root)
 	require.NoError(t, err)
 	<-transfer.Done()
 	fmt.Printf("Finished transferring\n")
