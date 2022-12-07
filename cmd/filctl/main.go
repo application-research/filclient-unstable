@@ -35,7 +35,12 @@ var log = logging.Logger("filctl")
 func main() {
 	logging.SetLogLevel("filctl", "info")
 
-	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	go func() {
+		<-ctx.Done()
+		fmt.Printf("\nInterrupt detected, waiting for graceful shutdown... (interrupt again to force shutdown)\n")
+		cancel()
+	}()
 
 	app := cli.NewApp()
 	app.Flags = []cli.Flag{
@@ -406,21 +411,38 @@ func cmdClearBlockstore(ctx *cli.Context) error {
 }
 
 func prompt(ctx *cli.Context, question string, defaultYes bool) bool {
-	if defaultYes {
-		fmt.Printf("%s [Y/n] ", question)
-	} else {
-		fmt.Printf("%s [y/N] ", question)
-	}
+	result := make(chan bool, 1)
 
-	if ctx.Bool("yes") {
-		fmt.Printf("\n")
-		return defaultYes
-	}
+	go func() {
+		if defaultYes {
+			fmt.Printf("%s [Y/n] ", question)
+		} else {
+			fmt.Printf("%s [y/N] ", question)
+		}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	if scanner.Text() == "" {
-		return defaultYes
+		if ctx.Bool("yes") {
+			fmt.Printf("\n")
+			result <- defaultYes
+			return
+		}
+
+		scanner := bufio.NewScanner(os.Stdin)
+
+		// NOTE(@elijaharita): this goroutine might never finish, but it doesn't
+		// matter because in general the program will be shut down within a few
+		// seconds
+		scanner.Scan()
+		if scanner.Text() == "" {
+			result <- defaultYes
+			return
+		}
+		result <- strings.ToLower(scanner.Text()) == "y"
+	}()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case result := <-result:
+		return result
 	}
-	return strings.ToLower(scanner.Text()) == "y"
 }
