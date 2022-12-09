@@ -19,5 +19,5 @@ filecoin_ffi: extern/filecoin-ffi
 
 clean:
 	rm -rf extern
-	rm filctl
+	rm -f filctl
 .PHONY: clean
