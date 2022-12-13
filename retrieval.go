@@ -11,6 +11,7 @@ import (
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	offline "github.com/ipfs/go-ipfs-exchange-offline"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
@@ -19,6 +20,48 @@ import (
 )
 
 // retrieval.go - all retrieval-related functions
+
+type RetrievalClient struct {
+	sph           StorageProviderHandle
+	bs            blockstore.Blockstore
+	dt            datatransfer.Manager
+	ds            datastore.Datastore
+	dtUnsubscribe datatransfer.Unsubscribe
+
+	retrievalTransfers   map[datatransfer.ChannelID]*RetrievalTransfer
+	retrievalTransfersLk sync.Mutex
+}
+
+func NewRetrievalClient(
+	ctx context.Context,
+	bs blockstore.Blockstore,
+	ds datastore.Datastore,
+	dt datatransfer.Manager,
+	opts ...Option,
+) (*RetrievalClient, error) {
+	cfg := Config{}
+
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	client := &RetrievalClient{
+		dt:                 dt,
+		bs:                 bs,
+		ds:                 ds,
+		retrievalTransfers: make(map[datatransfer.ChannelID]*RetrievalTransfer),
+		// dtUnsubscribe: assigned below
+	}
+
+	client.dtUnsubscribe = dt.SubscribeToEvents(func(
+		event datatransfer.Event,
+		channelState datatransfer.ChannelState,
+	) {
+		client.handleDataTransferRetrievalEvent(ctx, event, channelState)
+	})
+
+	return client, nil
+}
 
 var (
 	ErrUnexpectedRetrievalTransferState = errors.New("unexpected retrieval transfer state")
@@ -57,7 +100,7 @@ func (status RetrievalTransferStatus) IsDone() bool {
 // transfer
 type RetrievalTransfer struct {
 	lk       sync.Mutex
-	client   *Client
+	client   *RetrievalClient
 	status   RetrievalTransferStatus
 	provider peer.ID
 	proposal retrievalmarket.DealProposal
@@ -94,12 +137,12 @@ func (transfer *RetrievalTransfer) Size() uint64 {
 	return transfer.size
 }
 
-func (handle *StorageProviderHandle) QueryRetrievalAsk(ctx context.Context, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
+func (client *RetrievalClient) QueryRetrievalAsk(ctx context.Context, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
 	const protocol = "/fil/retrieval/qry/1.0.0"
 
 	req := retrievalmarket.Query{PayloadCID: payloadCid}
 	var resp retrievalmarket.QueryResponse
-	if err := handle.runSingleRPC(ctx, &req, &resp, retrievalmarket.QueryProtocolID); err != nil {
+	if err := client.sph.runSingleRPC(ctx, &req, &resp, retrievalmarket.QueryProtocolID); err != nil {
 		return retrievalmarket.QueryResponse{}, err
 	}
 
@@ -107,7 +150,7 @@ func (handle *StorageProviderHandle) QueryRetrievalAsk(ctx context.Context, payl
 }
 
 // Start running a retrieval
-func (handle *StorageProviderHandle) StartRetrievalTransfer(
+func (client *RetrievalClient) StartRetrievalTransfer(
 	ctx context.Context,
 	payloadCid cid.Cid,
 	options ...RetrievalOption,
@@ -119,7 +162,7 @@ func (handle *StorageProviderHandle) StartRetrievalTransfer(
 	cfg.Clean()
 
 	// TODO(@elijaharita): allow supplying a pre-run ask result
-	ask, err := handle.QueryRetrievalAsk(ctx, payloadCid)
+	ask, err := client.QueryRetrievalAsk(ctx, payloadCid)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +181,7 @@ func (handle *StorageProviderHandle) StartRetrievalTransfer(
 		return nil, err
 	}
 
-	dealID, err := handle.client.nextRetrievalDealID(ctx)
+	dealID, err := client.nextRetrievalDealID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +194,7 @@ func (handle *StorageProviderHandle) StartRetrievalTransfer(
 		Params:     params,
 	}
 
-	peerID, err := handle.PeerID(ctx)
+	peerID, err := client.sph.PeerID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +203,7 @@ func (handle *StorageProviderHandle) StartRetrievalTransfer(
 
 	var cachedProgress uint64
 	visited := cid.NewSet()
-	dag := merkledag.NewDAGService(blockservice.New(handle.client.bs, offline.Exchange(handle.client.bs)))
+	dag := merkledag.NewDAGService(blockservice.New(client.bs, offline.Exchange(client.bs)))
 
 	getLinks := func(ctx context.Context, cid cid.Cid) ([]*format.Link, error) {
 		node, err := dag.Get(ctx, cid)
@@ -168,7 +211,7 @@ func (handle *StorageProviderHandle) StartRetrievalTransfer(
 			return nil, err
 		}
 
-		blockSize, err := handle.client.bs.GetSize(ctx, cid)
+		blockSize, err := client.bs.GetSize(ctx, cid)
 		if err != nil {
 			return nil, err
 		}
@@ -184,11 +227,11 @@ func (handle *StorageProviderHandle) StartRetrievalTransfer(
 
 	// NOTE: from this point to the end of the function, retrieval transfers
 	// mutex will be locked to prevent channel lookups before it gets registered
-	handle.client.retrievalTransfersLk.Lock()
-	defer handle.client.retrievalTransfersLk.Unlock()
+	client.retrievalTransfersLk.Lock()
+	defer client.retrievalTransfersLk.Unlock()
 
 	log.Infof("Starting data channel...")
-	chanID, err := handle.client.dt.OpenPullDataChannel(
+	chanID, err := client.dt.OpenPullDataChannel(
 		ctx,
 		peerID,
 		&proposal,
@@ -200,8 +243,8 @@ func (handle *StorageProviderHandle) StartRetrievalTransfer(
 	}
 
 	transfer := &RetrievalTransfer{
-		client:            handle.client,
 		status:            RetrievalTransferStatusInProgress,
+		client:            client,
 		proposal:          proposal,
 		provider:          peerID,
 		chanID:            chanID,
@@ -211,7 +254,7 @@ func (handle *StorageProviderHandle) StartRetrievalTransfer(
 	}
 
 	// Register with running transfers
-	handle.client.retrievalTransfers[chanID] = transfer
+	client.retrievalTransfers[chanID] = transfer
 
 	log.Infof("Retrieval is running")
 
@@ -283,7 +326,7 @@ func (transfer *RetrievalTransfer) close(ctx context.Context) error {
 // Reads the next retrieval deal ID from the datastore (or initializes it as 1
 // if a datastore entry doesn't exist yet), and increments the datastore entry
 // afterwards
-func (client *Client) nextRetrievalDealID(ctx context.Context) (retrievalmarket.DealID, error) {
+func (client *RetrievalClient) nextRetrievalDealID(ctx context.Context) (retrievalmarket.DealID, error) {
 	key := datastore.NewKey("/Retrieval/NextDealID")
 
 	nextDealIDBytes, err := client.ds.Get(ctx, key)
@@ -313,7 +356,7 @@ func (client *Client) nextRetrievalDealID(ctx context.Context) (retrievalmarket.
 	return nextDealID, nil
 }
 
-func (client *Client) handleDataTransferRetrievalEvent(
+func (client *RetrievalClient) handleDataTransferRetrievalEvent(
 	ctx context.Context,
 	event datatransfer.Event,
 	channelState datatransfer.ChannelState,
@@ -360,7 +403,7 @@ func (client *Client) handleDataTransferRetrievalEvent(
 	}
 }
 
-func (client *Client) handleRetrievalDealResponse(
+func (client *RetrievalClient) handleRetrievalDealResponse(
 	ctx context.Context,
 	event datatransfer.Event,
 	channelState datatransfer.ChannelState,
