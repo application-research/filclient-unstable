@@ -3,7 +3,6 @@ package filclient
 import (
 	"context"
 	"errors"
-	"sync"
 
 	"github.com/filecoin-project/go-address"
 	datatransfer "github.com/filecoin-project/go-data-transfer"
@@ -34,17 +33,9 @@ var (
 type Config struct {
 }
 
-type Client struct {
-	host          host.Host
-	api           api.Gateway
-	dt            datatransfer.Manager
-	dtUnsubscribe datatransfer.Unsubscribe
-	bs            blockstore.Blockstore
-	ds            datastore.Datastore
-
-	// TODO(@elijaharita): this shouldn't be in the main Client struct
-	retrievalTransfers   map[datatransfer.ChannelID]*RetrievalTransfer
-	retrievalTransfersLk sync.Mutex
+type FilClient struct {
+	*RetrievalClient
+	*StorageClient
 }
 
 func New(
@@ -55,45 +46,29 @@ func New(
 	bs blockstore.Blockstore,
 	ds datastore.Batching,
 	opts ...Option,
-) (*Client, error) {
-	cfg := Config{}
-
-	for _, opt := range opts {
-		opt(&cfg)
-	}
+) (*FilClient, error) {
 
 	// ctx, cancel := context.WithCancel(ctx)
-
 	// rpc := rpcstmgr.NewRPCStateManager(api)
-
 	// paychDS := paychmgr.NewStore(namespace.Wrap(ds, datastore.NewKey("paych")))
 
 	dt, err := initDataTransfer(ctx, h, bs, ds)
 	if err != nil {
 		return nil, err
 	}
+	// ? opts?
+	rc, _ := NewRetrievalClient(ctx, bs, ds, dt)
+	sc, _ := NewStorageClient()
 
-	client := &Client{
-		host: h,
-		api:  api,
-		dt:   dt,
-		// dtUnsubscribe: assigned below
-		bs:                 bs,
-		ds:                 ds,
-		retrievalTransfers: make(map[datatransfer.ChannelID]*RetrievalTransfer),
+	client := &FilClient{
+		RetrievalClient: rc,
+		StorageClient:   sc,
 	}
-
-	client.dtUnsubscribe = dt.SubscribeToEvents(func(
-		event datatransfer.Event,
-		channelState datatransfer.ChannelState,
-	) {
-		client.handleDataTransferRetrievalEvent(ctx, event, channelState)
-	})
 
 	return client, nil
 }
 
-func (client *Client) Close() {
+func (client *FilClient) Close() {
 	if client.dtUnsubscribe != nil {
 		client.dtUnsubscribe()
 	}

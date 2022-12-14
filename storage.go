@@ -12,6 +12,10 @@ import (
 type StorageClient struct {
 }
 
+func NewStorageClient() (*StorageClient, error) {
+	return &StorageClient{}, nil
+}
+
 // storage.go - all storage-related functions
 
 // TODO
