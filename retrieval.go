@@ -22,7 +22,6 @@ import (
 // retrieval.go - all retrieval-related functions
 
 type RetrievalClient struct {
-	sph           StorageProviderHandle
 	bs            blockstore.Blockstore
 	dt            datatransfer.Manager
 	ds            datastore.Datastore
@@ -137,12 +136,12 @@ func (transfer *RetrievalTransfer) Size() uint64 {
 	return transfer.size
 }
 
-func (client *RetrievalClient) QueryRetrievalAsk(ctx context.Context, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
+func (client *RetrievalClient) QueryRetrievalAsk(ctx context.Context, sph *StorageProviderHandle, payloadCid cid.Cid) (retrievalmarket.QueryResponse, error) {
 	const protocol = "/fil/retrieval/qry/1.0.0"
 
 	req := retrievalmarket.Query{PayloadCID: payloadCid}
 	var resp retrievalmarket.QueryResponse
-	if err := client.sph.runSingleRPC(ctx, &req, &resp, retrievalmarket.QueryProtocolID); err != nil {
+	if err := sph.runSingleRPC(ctx, &req, &resp, retrievalmarket.QueryProtocolID); err != nil {
 		return retrievalmarket.QueryResponse{}, err
 	}
 
@@ -152,6 +151,7 @@ func (client *RetrievalClient) QueryRetrievalAsk(ctx context.Context, payloadCid
 // Start running a retrieval
 func (client *RetrievalClient) StartRetrievalTransfer(
 	ctx context.Context,
+	sph *StorageProviderHandle,
 	payloadCid cid.Cid,
 	options ...RetrievalOption,
 ) (*RetrievalTransfer, error) {
@@ -162,7 +162,7 @@ func (client *RetrievalClient) StartRetrievalTransfer(
 	cfg.Clean()
 
 	// TODO(@elijaharita): allow supplying a pre-run ask result
-	ask, err := client.QueryRetrievalAsk(ctx, payloadCid)
+	ask, err := client.QueryRetrievalAsk(ctx, sph, payloadCid)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (client *RetrievalClient) StartRetrievalTransfer(
 		Params:     params,
 	}
 
-	peerID, err := client.sph.PeerID(ctx)
+	peerID, err := sph.PeerID(ctx)
 	if err != nil {
 		return nil, err
 	}
