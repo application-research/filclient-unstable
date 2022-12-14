@@ -9,18 +9,21 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 )
 
+type StorageClient struct {
+}
+
 // storage.go - all storage-related functions
 
 // TODO
 // func (handle *MinerHandle) QueryStorageAsk(ctx context.Context) (storagemarket.StorageAsk, error) {}
 
 // Queries a storage ask, returning the signature without validating it
-func (handle *StorageProviderHandle) QueryStorageAskUnchecked(ctx context.Context) (storagemarket.StorageAsk, crypto.Signature, error) {
+func (client *StorageClient) QueryStorageAskUnchecked(ctx context.Context, sph *StorageProviderHandle) (storagemarket.StorageAsk, crypto.Signature, error) {
 	const protocol = "/fil/storage/ask/1.1.0"
 
-	req := network.AskRequest{Miner: handle.addr}
+	req := network.AskRequest{Miner: sph.addr}
 	var resp network.AskResponse
-	if err := handle.runSingleRPC(ctx, &req, &resp, protocol); err != nil {
+	if err := sph.runSingleRPC(ctx, &req, &resp, protocol); err != nil {
 		return storagemarket.StorageAsk{}, crypto.Signature{}, err
 	}
 
