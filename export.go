@@ -16,7 +16,7 @@ import (
 
 // Exports the provided CID to a file
 // The content must already exist in the blockstore before calling this function
-func (client *Client) ExportToFile(ctx context.Context, c cid.Cid, path string, exportAsCAR bool) error {
+func (client *RetrievalClient) ExportToFile(ctx context.Context, c cid.Cid, path string, exportAsCAR bool) error {
 	// Save output file
 	dservOffline := merkledag.NewDAGService(blockservice.New(client.bs, offline.Exchange(client.bs)))
 	dnode, err := dservOffline.Get(ctx, c)
