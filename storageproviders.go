@@ -8,7 +8,9 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
+	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -31,20 +33,24 @@ type StorageProviderHandle struct {
 	addr address.Address
 	// WARNING: may be uninitialized - use .PeerID()
 	peerID peer.ID
-	client *Client
+
+	host host.Host
+	api  api.Gateway
 }
 
-func (client *Client) StorageProviderByAddress(addr address.Address) *StorageProviderHandle {
+func StorageProviderByAddress(addr address.Address, h host.Host, api api.Gateway) *StorageProviderHandle {
 	return &StorageProviderHandle{
-		addr:   addr,
-		client: client,
+		addr: addr,
+		host: h,
+		api:  api,
 	}
 }
 
-func (client *Client) StorageProviderByPeerID(peerID peer.ID) *StorageProviderHandle {
+func StorageProviderByPeerID(peerID peer.ID, h host.Host, api api.Gateway) *StorageProviderHandle {
 	return &StorageProviderHandle{
 		peerID: peerID,
-		client: client,
+		host:   h,
+		api:    api,
 	}
 }
 
@@ -63,7 +69,7 @@ func (handle *StorageProviderHandle) Address(ctx context.Context) (address.Addre
 // Returns the peer ID of the provider, looking it up on chain using the address
 // if not already stored
 func (handle *StorageProviderHandle) PeerID(ctx context.Context) (peer.ID, error) {
-	info, err := handle.client.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
+	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
@@ -77,14 +83,14 @@ func (handle *StorageProviderHandle) PeerID(ctx context.Context) (peer.ID, error
 	return handle.peerID, nil
 }
 
-// Looks up the version string of the miner
+// Looks up the version string of the storage provider
 func (handle *StorageProviderHandle) Version(ctx context.Context) (string, error) {
 	peer, err := handle.Connect(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	version, err := handle.client.host.Peerstore().Get(peer, "AgentVersion")
+	version, err := handle.host.Peerstore().Get(peer, "AgentVersion")
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
@@ -99,7 +105,7 @@ func (handle *StorageProviderHandle) stream(ctx context.Context, protocols ...pr
 		return nil, err
 	}
 
-	stream, err := handle.client.host.NewStream(ctx, peer, protocols...)
+	stream, err := handle.host.NewStream(ctx, peer, protocols...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrMinerStreamFailed, err)
 	}
@@ -140,7 +146,7 @@ func (handle *StorageProviderHandle) runSingleRPC(ctx context.Context, req inter
 // BEHAVIOR CHANGE - no longer errors on invalid multiaddr if at least one valid
 // multiaddr exists
 func (handle *StorageProviderHandle) Connect(ctx context.Context) (peer.ID, error) {
-	info, err := handle.client.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
+	info, err := handle.api.StateMinerInfo(ctx, handle.addr, types.EmptyTSK)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrLotusError, err)
 	}
@@ -180,7 +186,7 @@ func (handle *StorageProviderHandle) Connect(ctx context.Context) (peer.ID, erro
 		return "", fmt.Errorf("%w: miner info has no multiaddrs", ErrMinerConnectionFailed)
 	}
 
-	if err := handle.client.host.Connect(ctx, peer.AddrInfo{
+	if err := handle.host.Connect(ctx, peer.AddrInfo{
 		ID:    *info.PeerId,
 		Addrs: multiaddrs,
 	}); err != nil {
